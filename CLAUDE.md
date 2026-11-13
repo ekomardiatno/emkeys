@@ -7,7 +7,7 @@ code-server / VS Code in Chrome on tablets. Kotlin, Canvas-based custom view, An
 ## Current state
 
 - The keyboard has 84 ANSI-style keys, a function row, inverted-T arrows and no extra
-  toolbar row. Setup opens from the launcher icon.
+  toolbar row. There is no launcher icon; Android's IME settings entry opens setup.
 - Ctrl/Shift/Alt work when held in a chord. A double-tap within 300 ms locks one; a
   single tap unlocks it. Fn follows the same gesture for its layer. Fn+Esc separately
   toggles persistent FnLock; holding Fn temporarily reverses FnLock.

@@ -48,8 +48,9 @@ Requires JDK 17 and Android SDK/build tools 36. Configure your SDK in
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Install it, open **emkeys setup**, enable emkeys in Android's keyboard settings,
-then select it in the keyboard picker. The setup screen also has a typing test.
+Install it, enable emkeys in Android's keyboard settings, then select it in the
+keyboard picker. To open setup, use emkeys' settings/gear entry in Android's on-screen
+keyboard settings. The app intentionally has no launcher icon. Setup includes a typing test.
 The full layout is designed for tablets, not phone-sized touch targets.
 
 ## Controls
@@ -67,11 +68,11 @@ The full layout is designed for tablets, not phone-sized touch targets.
 | Fn + S / K | SysRq / Scroll Lock |
 | Fn + Tab | Switch to the previous keyboard |
 | Fn + Space | Open the keyboard picker |
-| Setup | Launch **emkeys setup** from the app icon |
+| Setup | Open emkeys' settings/gear entry in Android's on-screen keyboard settings |
 
 The keyboard has no extra toolbar above the keys. Use Android's keyboard-switcher
 control in the navigation bar, Fn+Tab for the previous IME, or Fn+Space for the
-picker. Launch setup from the app icon when you need to change preferences.
+picker. Open setup through Android's settings entry for emkeys when you need to change preferences.
 The latest APK is installed on the tablet; the updated device suite and Bluetooth/USB
 attach-detach behavior still need validation during an idle-device window.
 
