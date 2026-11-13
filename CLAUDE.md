@@ -11,11 +11,14 @@ geometry, or the trackpad options. Do not re-research it.
 
 Status: **keyboard-only MVP implemented (chunk 2)** — full 84-key modern ThinkPad
 layout, local Fn/Caps, persistent FnLock, Fn/Ctrl swap, switching toolbar, slide-off,
-and virtual accessibility keys. The expanded keyboard passed 5 native device tests
-and 10 Chrome oracle cases on the Galaxy Tab S9 Ultra (see `RESEARCH.md` §9.6).
-Real-editor acceptance, manual multitouch ergonomics, switching and TalkBack still
-need the checklist in `README.md`. Do not confuse event delivery with a verified
-code-server command, or injected pointers with human touch-panel testing.
+and virtual accessibility keys. The expanded keyboard passed 12 native device tests
+and 10 Chrome oracle cases on the Galaxy Tab S9 Ultra (see `RESEARCH.md` §§9.6–9.7).
+Command Palette/Quick Open and Escape also work in the actual code-server PWA.
+Overlap, slide-off, editor teardown, Fn/Ctrl swap, picker/previous controls and virtual
+accessibility clicks are device-covered. Broader editor/terminal workflows, manual
+multitouch ergonomics, the no-history switching fallback and TalkBack still need the
+checklist in `README.md`. Do not generalize injected pointers to human touch-panel
+testing, or virtual-node actions to TalkBack UX acceptance.
 
 ---
 

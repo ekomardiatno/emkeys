@@ -11,12 +11,14 @@ Ctrl/Shift/Alt chords and sticky modifiers, key repeat, a local Fn layer, Caps,
 persistent FnLock, Fn/Ctrl swap, and keyboard-switching controls. Key legends use
 bundled JetBrains Mono. The keyboard needs **no root, Shizuku or network permission**.
 
-The expanded keyboard passed **5 native device tests and 10 Chrome oracle cases**
+The expanded keyboard passed **12 native device tests and 10 Chrome oracle cases**
 on a Galaxy Tab S9 Ultra (Android 16), including both orientations, injected
 three-finger touches, symbols, shortcuts, Fn and repeat. The original prototype was
-also verified against code-server; **the expanded build still needs real-editor
-acceptance, switching and TalkBack checks below**. There is no trackpad, light theme
-or signed release yet. See `RESEARCH.md` §9.6 for the exact evidence and limits.
+also verified against code-server; the expanded build now opens Command Palette
+and Quick Open in the real code-server PWA and dismisses them with Escape.
+**Broader editor/terminal workflows and TalkBack still need acceptance checks below**.
+There is no trackpad, light theme
+or signed release yet. See `RESEARCH.md` §§9.6–9.7 for the exact evidence and limits.
 
 Local validation: **71 JVM tests pass**, debug and unsigned/minified release APKs
 build, and debug lint passes with zero errors (six advisory warnings about tool
@@ -110,21 +112,47 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [x] Chrome receives Caps inversion, bare Escape under FnLock and 16 repeated
   Ctrl+Left pairs inside one Ctrl envelope.
 - [x] Keyboard stays visible with the physical keyboard attached; no fullscreen editor.
+- [x] Expanded build in the real code-server PWA: Ctrl+Shift+P opens Command Palette,
+  Ctrl+P opens Quick Open, and Escape dismisses each. No files or terminal input changed.
+- [x] Overlapping base-key sessions retain Shift for the remaining repeating key after
+  the Shift pointer and first base key are lifted; the following key is lowercase.
+- [x] Slide-off stops repeat and cancels an unused modifier without latching it.
+- [x] Leaving for Home mid-hold and recreating the editor leaks no repeat/modifier.
+- [x] Reopening the input view applies persisted Fn/Ctrl swap; Fn navigation still works.
+- [x] Fn+Space/toolbar picker open the system picker; Previous/Fn+Tab return to a known
+  recent Gboard. The no-history fallback is still pending.
+- [x] Virtual accessibility clicks type `aBc` using one-shot Shift, and Win is disabled.
+  TalkBack speech/focus/touch navigation is still pending.
 
 The general checklist above remains open where it includes additional manual or
 real-editor behavior. Oracle dispatch tests block browser defaults, so successful
 delivery is not proof of a code-server command executing. F6 was deliberately omitted;
 its browser compatibility remains unverified.
 
+### Remaining hands-on acceptance
+
+Use **File → New Text File** for a disposable untitled editor, not an existing project
+file. Check coding punctuation, selection/navigation, Delete/Backspace and Ctrl+W;
+discard only that scratch buffer. For terminal checks, create a separate idle terminal
+rather than sending test shortcuts into a running shell task. Test F6 and
+Ctrl+PgUp/PgDn separately in Chrome tab mode and the installed code-server PWA.
+
+Try actual three-finger chords and normal typing in both orientations. Then use
+TalkBack to explore and activate individual keys and latched chords. Automated virtual
+node actions do not establish TalkBack focus order, spoken feedback or touch ergonomics.
+
 ### Reproduce device automation
 
 Use an idle test tablet with emkeys enabled; commands below target the single device
 selected by `ANDROID_SERIAL`. Save outputs outside the repository if they contain
 test keystrokes. Tests temporarily change FnLock/Fn-swap preferences and restore them;
-rotation tests unfreeze orientation on completion.
+rotation tests unfreeze orientation on completion. The previous-keyboard test needs
+a second enabled keyboard (otherwise it is skipped), temporarily seeds its history
+using test-only shell authority, and restores emkeys. Tests never disable keyboards.
 
 ```sh
 export ANDROID_SERIAL=YOUR_DEVICE_SERIAL
+RESULTS_DIR="$(mktemp -d)"
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
@@ -136,9 +164,9 @@ adb shell am instrument -w -r -e class com.ekomardiatno.emkeys.KeyboardDeviceTes
 # Export fresh bounds after the rotation tests, in the orientation Chrome will use.
 adb shell am instrument -w -r \
   -e class 'com.ekomardiatno.emkeys.KeyboardDeviceTest#exportKeyBounds' \
-  com.ekomardiatno.emkeys.test/androidx.test.runner.AndroidJUnitRunner > device-bounds.txt
+  com.ekomardiatno.emkeys.test/androidx.test.runner.AndroidJUnitRunner > "$RESULTS_DIR/device-bounds.txt"
 python3 tools/device_browser_smoke.py --serial "$ANDROID_SERIAL" \
-  --bounds device-bounds.txt --output browser-results.json
+  --bounds "$RESULTS_DIR/device-bounds.txt" --output "$RESULTS_DIR/browser-results.json"
 ```
 
 The Python runner uses a loopback-only `keyoracle_server.py` with an ephemeral adb

@@ -1037,3 +1037,60 @@ Ctrl+PgUp/PgDn compatibility; manual simultaneous fingers/typing ergonomics; ove
 base keys, slide-off and editor teardown mid-hold on hardware; Fn/Ctrl swap and keyboard
 switching/fallback UI; TalkBack navigation/activation. Earlier prototype evidence in
 §9.4 remains valid but must not be presented as expanded-build acceptance.
+
+### 9.7 Keyboard acceptance/hardening follow-up (2026-11-13)
+
+The keyboard MVP was committed as `fa172bc`. This phase finishes keyboard acceptance
+and regression coverage before expanding into trackpad/Shizuku work.
+
+**Actual code-server PWA, expanded layout:** with the existing terminal focused,
+tap emkeys Ctrl, Shift, P. The VS Code Command Palette appears, with the `>` prompt
+and command list. Tap emkeys Escape: the palette disappears. Tap emkeys Ctrl, P:
+Quick Open appears with its file-search placeholder and recent items. Escape dismisses
+it. This proves these workbench keybindings execute in
+`com.android.chrome/org.chromium.chrome.browser.webapps.SameTaskWebApkActivity`,
+not just in the oracle. Foreground activity and selected IME were checked before
+injecting cap-coordinate taps. No command was executed, file opened/edited, or text
+sent to the integrated terminal. Screenshots were inspected locally, not committed
+because they contain unrelated workspace/session information.
+
+Seven additional native regressions in `KeyboardDeviceTest` cover:
+
+- Two base keys under Shift; release the Shift pointer and first base key while the
+  second repeats. The second stays uppercase and the following key is lowercase.
+  Pointer ids remain stable even after an earlier pointer leaves the stream.
+- Slide from a base key past its hit target: keep the initial stroke, stop all repeat.
+  Slide an unused Shift away: no latch and no character from the destination cap.
+- Leave for Home during held Shift+Q, recreate the setup editor, wait beyond repeat
+  delay and type plain P; no repeat or modifier should leak into the new connection.
+- Invoke virtual accessibility ACTION_CLICK for `a`, latched Shift+`B`, then `c`;
+  verify `aBc` and that Win remains disabled. This is not TalkBack UX acceptance.
+- Persist Fn/Ctrl swap, reopen the input view, verify left-Ctrl/Fn ordering and use
+  Fn+left to edit at Home. The test changes the preference directly, not its checkbox.
+- Fn+Space and the toolbar open the real system picker and leave no Fn latch when
+  dismissed.
+- With Gboard as a known recent keyboard, toolbar Previous and Fn+Tab both select it;
+  emkeys is restored afterward. Only test UiAutomation uses shell authority to seed
+  history; no settings permission is added to the app. This test skips if there is no
+  second enabled keyboard. The no-history picker fallback remains unverified.
+
+The initial teardown assertion exposed an accessibility test pitfall: empty EditText
+nodes can report the hint through `text`. The assertion now accepts a node explicitly
+marked `isShowingHintText` as empty; literal typed hint text is not accepted. The wait
+helper also returns immediately on its first successful condition, avoiding a second
+side-effecting accessibility click after success. No production dispatch changes were
+needed for this follow-up coverage.
+
+**Final follow-up run: `OK (12 tests)`, 58.235s, no failures or skips.** All seven
+additional scenarios above passed alongside the five earlier device checks. The host
+restored the starting selected IME, accelerometer/user-rotation settings and original
+code-server task after instrumentation. JVM tests (71), instrumentation build and
+debug lint also pass. The production APK is unchanged from the validated MVP.
+
+Remaining acceptance is narrower than the historical pending list in §9.6: scratch
+editor/terminal workflows including Ctrl+W and terminal shortcuts; F6/Ctrl+PgUp/PgDn
+in browser and PWA modes; human multitouch/typing ergonomics; rotation mid-hold;
+the Fn/Ctrl checkbox UI and no-history previous-keyboard fallback; actual TalkBack
+speech, focus order and explore-by-touch. Do not disable other keyboards merely to
+manufacture the no-history case on the user's tablet. Trackpad/Shizuku, theme work
+and release/distribution remain separate milestones.
