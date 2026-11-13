@@ -1,238 +1,54 @@
 # emkeys
 
-An Android IME that types code. A ThinkPad-layout soft keyboard for driving
-**code-server in Chrome** from a tablet, where Gboard is useless because it has no
-Ctrl, no Esc, no F-row and no arrows.
+An Android `InputMethodService` that provides a ThinkPad-style coding keyboard for
+code-server / VS Code in Chrome on tablets. Kotlin, Canvas-based custom view, Android
+10+ (API 29), no Compose.
 
-**`RESEARCH.md` is the authoritative research record.** It is long, it is
-verified-from-source, and it is *already done*. Read it before re-deriving anything
-about Android IMEs, Chromium key dispatch, VS Code keybinding resolution, the ThinkPad
-geometry, or the trackpad options. Do not re-research it.
+## Current state
 
-Status: **chunk 1 complete** — scaffold + walking skeleton. The dispatch core is real
-and proven on device; the layout is a deliberately fake 12-key stand-in.
+- The keyboard has 84 ANSI-style keys, a function row, inverted-T arrows and no extra
+  toolbar row. Setup opens from the launcher icon.
+- Ctrl/Shift/Alt work when held in a chord. A double-tap within 300 ms locks one; a
+  single tap unlocks it. Fn follows the same gesture for its layer. Fn+Esc separately
+  toggles persistent FnLock; holding Fn temporarily reverses FnLock.
+- If Android reports an available physical keyboard, the IME suppresses its input
+  view. It also hides an already-visible view on connection and requests it again on
+  disconnect if the editor remains active. Bluetooth/USB attach-detach behavior needs
+  device validation.
+- The latest source has 93 passing JVM tests and builds debug/instrumentation APKs;
+  lint passes. The installed APK is newer than the last completed device test run.
+- TalkBack testing is intentionally skipped at the user's request. Trackpad/Shizuku,
+  themes, signing and distribution are out of scope unless requested.
 
----
+## Architecture
 
-## 1. What chunk 1 was for
-
-Not keycaps. The point was to prove on hardware that an `InputMethodService` using
-`sendKeyEvent` delivers a working `Ctrl+Shift+P` to code-server — *before* investing in
-84 keys of ThinkPad geometry. Everything in `RESEARCH.md` §1.3 was reasoned from
-Chromium source and had never been run.
-
-It ran. It works. See `RESEARCH.md` §9.4 for the evidence.
-
-Two things in `RESEARCH.md` were wrong and are now corrected in place:
-
-1. **§1.3 scancodes.** evdev codes are **positional, not alphabetical**
-   (`Q=16 W=17 … A=30 S=31 … Z=44 X=45 …`, and `F11=87 F12=88` after `F1..F10=59..68`).
-   The alphabetical reading fails *silently* — `keyCode` stays right, only `event.code`
-   lies — which is why `model/Evdev.kt` is a literal table with a unit test, never a
-   formula.
-2. **§5.3 "hardware + soft keyboard together: impossible".** Wrong. That suppression is
-   `InputMethodService.onEvaluateInputViewShown()`, a public overridable method. We
-   override it to `true` and emkeys shows with a physical keyboard connected and
-   `show_ime_with_hard_keyboard = 0`.
-
----
-
-## 2. Architecture
-
-The whole design exists to make the dispatch core **testable on the JVM with no device
-and no Robolectric**.
-
-```
-model/                 pure Kotlin, no Android construction
-  Evdev.kt             literal Android keyCode -> evdev scancode table (+ unit test)
-  Mod.kt               CTRL/SHIFT/ALT: keyCode, scanCode, metaBits, canonical order
-  KeyStroke.kt         data class(keyCode, down, metaState, scanCode)
-  Key.kt               Key / KeyRole (Base | Modifier) / KeyRow / Layout
-  SkeletonLayout.kt    the 12-key chunk-1 layout
-
-ime/
-  ChordEnvelope.kt     List<Mod> + Key -> List<KeyStroke>.  Pure. The contract.
-  ModifierState.kt     OFF / LATCHED / HELD / LOCKED, untimed tap cycle
-  KeyDispatcher.kt     chord sessions keyed by pointerId; talks to a StrokeSink
-  RepeatController.kt  Handler-based repeat; implements Repeater
-  KeyboardController.kt the one place the ordering invariants live
-  ImeStrokeSink.kt     StrokeSink -> InputConnection. Logs every stroke to logcat.
-  KeyEventFactory.kt   KeyStroke -> android.view.KeyEvent.  THE ONLY KeyEvent ctor.
-  EmkeysInputMethodService.kt
-
-view/
-  Theme.kt             pingwin tokens resolved from colors.xml
-  KeyboardView.kt      measure, lay out caps, draw, demultiplex pointers
-
-setup/
-  SetupActivity.kt     three diagnostics + a smoke-test EditText
+```text
+app/src/main/java/com/ekomardiatno/emkeys/
+  model/   key roles, evdev scan-code table, ThinkPadLayout, geometry, strokes
+  ime/     ModifierState, FnState, KeyboardController, KeyDispatcher, InputMethodService
+  view/    Canvas keyboard, touch handling, virtual accessibility nodes and themes
+  setup/   setup diagnostics and persisted Fn/Ctrl preferences
+app/src/test/        JVM behavior, dispatch, geometry and hardware-keyboard policy tests
+app/src/androidTest/ device-level IME, touch, typing and orientation tests
+tools/               isolated Chrome oracle and shortcut probes
 ```
 
-### Why `KeyStroke` exists
+Keep Android `KeyEvent` construction in `KeyEventFactory`; the dispatch core should
+remain JVM-testable. Preserve the ordering and ownership rules in `KeyboardController`
+and `KeyDispatcher`, especially chord close/release, overlapping pointers and teardown.
 
-`android.view.KeyEvent`'s constructor throws `RuntimeException("Stub!")` under the unit
--test `android.jar`. So the envelope produces pure-Kotlin `KeyStroke`s, and exactly one
-file (`KeyEventFactory.kt`) converts them. `KeyEvent.KEYCODE_*` and `META_*` constants
-*do* resolve off-device (kotlinc inlines Java `static final` primitives), so the model
-can name them freely — only *construction* is device-only.
-
-Consequence: **if you change dispatch behaviour, there is a JVM test for it.** 40 tests,
-no emulator.
-
-### The chord envelope
-
-Modifier DOWNs with meta *accumulating*, base DOWN/UP with the full meta, modifier UPs
-in reverse with each shedding its own bit:
-
-```
-CTRL_LEFT  DOWN  meta=0x3000
-SHIFT_LEFT DOWN  meta=0x3041
-P          DOWN  meta=0x3041
-P          UP    meta=0x3041
-SHIFT_LEFT UP    meta=0x3000
-CTRL_LEFT  UP    meta=0x0
-```
-
-A **chord session spans one base-key pointer** — opened on pointer-down, held open
-across every repeat tick, closed on pointer-up. That is what makes a held arrow emit N
-discrete pairs inside a single `Ctrl` press.
-
-### Three ordering invariants (`KeyboardController`)
-
-They are easy to get subtly wrong, so they live in one function each:
-
-1. `markChordConsumed()` **before** dispatching a base key — a modifier that was *held
-   and used* must not also latch when released.
-2. `consumeLatched()` **after** the chord closes — a latch clears after exactly one base
-   key, not before it is sent.
-3. `repeater.cancel()` **before** `dispatcher.closeChord()` — never let a repeat tick
-   fire into a session that is being torn down.
-
-### Stranded modifiers
-
-`cancelAll(sendUps)`:
-
-- `sendUps = true` for `ACTION_CANCEL` and `onFinishInputView` — connection is live, so
-  flush the UPs.
-- `sendUps = false` for `onFinishInput` and `onUnbindInput` — connection is dead or
-  about to belong to someone else. **Never send UPs into a different `InputConnection`.**
-
-Verified on device: latch `Ctrl`, press Home, come back, tap `P` → `metaState = 0`.
-
----
-
-## 3. Build and run
+## Build and validate
 
 ```sh
-cd ~/Desktop/projects/emkeys
-./gradlew :app:testDebugUnitTest     # 40 tests, no device
-./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
 ```
 
-Toolchain matches `pingwin-android`: Gradle 9.3.1, AGP 8.13.2, Kotlin 2.2.20, JDK 17,
-compileSdk/buildTools 36, minSdk 29. Dependencies are `androidx.core:core-ktx` and
-`junit` — nothing else. No Compose, no Hilt, no Room.
+Do not run instrumentation or send adb input while the tablet is being used in the
+code-server PWA. A foreground-app guard cannot tell an editor from a live terminal in
+that same PWA; get an idle window first. After a device run, restore the original IME,
+rotation and foreground task. Do not edit or type into existing project files during
+acceptance; use disposable untitled editors and test terminals.
 
-Debug signing only. The `keystoreProps` block in `app/build.gradle.kts` no-ops when
-`keystore.properties` is absent; there is no `.jks` yet.
-
-### Install and enable
-
-```sh
-ADB=~/Library/Android/sdk/platform-tools/adb
-D=192.168.18.95:45671                       # SM-X916B, wireless
-
-$ADB -s $D install -r app/build/outputs/apk/debug/app-debug.apk
-$ADB -s $D shell ime list -a -s             # must list com.ekomardiatno.emkeys/...
-$ADB -s $D shell ime enable  com.ekomardiatno.emkeys/.ime.EmkeysInputMethodService
-$ADB -s $D shell ime set     com.ekomardiatno.emkeys/.ime.EmkeysInputMethodService
-```
-
-**Restore the normal keyboard when done** — emkeys has 12 keys, it is not usable for
-real typing yet:
-
-```sh
-$ADB -s $D shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME
-```
-
-If `ime list -a -s` does not show emkeys, the registration is broken. There are three
-silent failure modes and all three are documented in `AndroidManifest.xml`: missing
-`BIND_INPUT_METHOD` permission, missing `android.view.InputMethod` intent filter, or a
-`android.view.im` meta-data resource that does not resolve.
-
-### Observing dispatch
-
-`ImeStrokeSink` logs every stroke:
-
-```sh
-$ADB -s $D logcat -c && $ADB -s $D logcat -d -s emkeys:D
-# D emkeys: KeyStroke(code=113, DOWN, meta=0x3000, scan=29)
-```
-
-That is **our** side. For the **browser's** side use the oracle:
-
-```sh
-cd tools && python3 -m http.server 8777 &
-$ADB -s $D reverse tcp:8777 tcp:8777
-$ADB -s $D shell am start -n com.android.chrome/com.google.android.apps.chrome.Main \
-  -a android.intent.action.VIEW -d 'http://localhost:8777/keyoracle.html'
-```
-
-`tools/keyoracle.html` logs `key / code / keyCode / mods / location / repeat /
-isComposing / isTrusted`, newest first, flags empty `code` and `keyCode === 229` in red,
-and `preventDefault()`s anything with ctrl/alt/meta so the `Ctrl+W` test doesn't close
-the page. DevTools and `chrome://inspect` were rejected — see the file header.
-
----
-
-## 4. Device facts (SM-X916B, Galaxy Tab S9 Ultra)
-
-- Android 16 / SDK 36. 2960×1848 landscape, density 280 (1.75×).
-- Wireless adb `192.168.18.95:45671`. The Bash sandbox blocks the adb binary — these
-  commands need `dangerouslyDisableSandbox`. Host-side pipes are flaky; put the pipe
-  *inside* the on-device shell string instead.
-- `show_ime_with_hard_keyboard = 0`, and a **Lenovo TrackPoint Keyboard II is paired and
-  usually connected**. Neither suppresses emkeys (we override
-  `onEvaluateInputViewShown()`), but both suppress Gboard. The TrackPoint keyboard is a
-  useful ground-truth oracle: it is the exact keyboard emkeys imitates.
-- code-server is installed as a **WebAPK/PWA**
-  (`org.chromium.chrome.browser.webapps.SameTaskWebApkActivity`), so no tab strip and no
-  omnibox — most of `RESEARCH.md` §3.2's key-stealing worries don't apply there.
-- Chrome is `com.android.chrome`, v157, currently in **desktop-site mode** (UA says
-  `X11; Linux x86_64`, so `navigator.keyboard` is *present*). On a mobile UA it would be
-  undefined and VS Code would use `FallbackKeyboardMapper`. Worth remembering — it
-  changes which mapper path you are testing.
-- There is a secondary user 150; `pm list packages` throws `SecurityException` for it.
-  Harmless.
-- Driving the device with `adb shell input` while someone is using the tablet is a
-  losing game — the foreground app changes under you. Verify `topResumedActivity`
-  inline, in the same on-device shell, right before the taps that matter.
-
-### Chunk-1 cap coordinates (landscape, px)
-
-`unit = 413.857`, `x_centre(i) = 217.43 + i*420.857`; row 0 `y = 1689`, row 1 `y = 1790`.
-
-| Row 0 | Esc 217 | Tab 638 | ← 1059 | ↓ 1480 | ↑ 1901 | → 2322 | Bksp 2742 |
-|---|---|---|---|---|---|---|---|
-| **Row 1** | **Ctrl 217** | **Shift 638** | **Alt 1059** | **P 1480** | **W 1901** | | |
-
----
-
-## 5. Known limitation, carried into chunk 2
-
-Two **non-modifier** keys held at once open two chord sessions, so `Ctrl` DOWN is
-emitted twice. Harmless for everything chunk 1 cares about, and asserted as-is in
-`ChordEnvelopeTest` so the behaviour change is visible when it is fixed.
-
-The fix: reference-count modifier DOWNs in `KeyDispatcher` — emit DOWN on 0→1 and UP on
-1→0.
-
----
-
-## 6. Deliberately not here yet
-
-ThinkPad 15u geometry and the 84-key layout · Fn layer and FnLock · light mode ·
-settings UI beyond the three diagnostics · the UHID/Shizuku trackpad · haptics tuning ·
-key preview popups and slide-off · GitHub remote and release CI · release signing.
-
-`RESEARCH.md` has the design already decided for all of these.
+`README.md` is the current user/build/acceptance guide. `RESEARCH.md` contains research
+and historical evidence; check dates and do not treat old conclusions as current
+behavior without confirming them against source and README.

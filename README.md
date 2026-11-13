@@ -15,15 +15,14 @@ The toolbar-free build passed **18 native device tests** on a Galaxy Tab S9 Ultr
 (Android 16), including both orientations, injected three-finger touches, symbols,
 shortcuts, Fn, repeat, accessibility states and the toolbar-free input view. The
 preceding build passed **10 Chrome oracle cases**.
-The original prototype was also verified against code-server; the expanded build
-now opens Command Palette
-and Quick Open in the real code-server PWA and dismisses them with Escape. Scratch
+The expanded build opens Command Palette and Quick Open in the real code-server PWA
+and dismisses them with Escape. Scratch
 editing, selection/navigation, coding punctuation, Caps and Ctrl+W also work there.
 Basic terminal typing, Ctrl+C and Ctrl+A work; Ctrl+E is intercepted by VS Code's
-Quick Open in the tested configuration. **TalkBack and broader terminal workflows
-still need acceptance checks below**.
-There is no trackpad, light theme
-or signed release yet. See `RESEARCH.md` §§9.6–9.9 for the exact evidence and limits.
+Quick Open in the tested configuration. Broader terminal workflows still need
+acceptance checks below. TalkBack testing is skipped per user preference.
+There is no trackpad, light theme or signed release yet. `RESEARCH.md` §§9.1–9.4
+hold the original device and feasibility evidence; this README tracks current behavior.
 
 Local validation: **93 JVM tests pass**, debug APKs
 build, and debug lint passes with zero errors (six advisory warnings about tool
@@ -34,8 +33,9 @@ Shift/Ctrl/Alt/Fn work while held; a fast double-tap locks them and one tap unlo
 Fn+Esc remains the explicit persistent FnLock action. The IME now suppresses its view
 when Android reports an available physical keyboard, and hides an already-open view
 on connection; it requests the view again after disconnect if the editor is still active.
-These latest changes pass host tests but have not yet been installed/device-tested.
-TalkBack speech and explore-by-touch validation are skipped per user preference.
+The latest APK is installed, but the modifier-lock and physical-keyboard changes have
+not yet been device-tested. TalkBack speech and explore-by-touch validation are skipped
+per user preference.
 
 ## Build
 
@@ -72,8 +72,8 @@ The full layout is designed for tablets, not phone-sized touch targets.
 The keyboard has no extra toolbar above the keys. Use Android's keyboard-switcher
 control in the navigation bar, Fn+Tab for the previous IME, or Fn+Space for the
 picker. Launch setup from the app icon when you need to change preferences.
-The installed tablet build predates the latest double-tap and hardware-keyboard
-changes; current source needs a fresh device install/test.
+The latest APK is installed on the tablet; the updated device suite and Bluetooth/USB
+attach-detach behavior still need validation during an idle-device window.
 
 F1–F12 stay primary; no Windows-only media functions are simulated. **Swap Fn and
 left Ctrl** in setup; the layout refreshes the next time the keyboard opens. Both
@@ -94,8 +94,9 @@ the persistent lock and how to toggle it, without making bare Esc a toggle butto
   `metaKey`. This is not a system-level keyboard injector.
 - Chrome tab mode reserves shortcuts: F6 focuses the address bar; Ctrl+PgUp/PgDn
   switch browser tabs instead of reaching the page (Chrome 157, Galaxy Tab S9 Ultra).
-  Ctrl+Tab was also previously confirmed stolen. Use VS Code remappings as needed;
-  the installed code-server PWA's shortcut behavior must be checked separately.
+  Ctrl+Tab was also previously confirmed stolen. In the installed code-server PWA,
+  Ctrl+Shift+P opened Command Palette, while F6 showed no visible focus change and
+  Ctrl+PgUp/PgDn did not switch between the two blank editor tabs in the probe.
 - Repeat is generated as discrete key-down/key-up pairs, not DOM `repeat: true`.
 - Fn functions depend on the target app handling their Android keycodes.
 - In the tested code-server PWA configuration, Ctrl+E opens Quick Open even with
@@ -114,7 +115,7 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [ ] Alphabet, digits, every shifted symbol, Space, Enter, Backspace and Delete.
 - [x] Ctrl+Shift+P opens Command Palette; Escape closes it; Ctrl+W closes an editor.
 - [ ] Hold Ctrl + Shift with two fingers, tap P with a third; modifiers release with the chord.
-- [ ] Tap Shift/Ctrl/Alt/Fn without holding another key; no modifier or Fn layer stays active.
+- [ ] Single-tap Shift/Ctrl/Alt/Fn leaves them inactive; double-tap locks and one tap unlocks.
 - [ ] Overlap two base keys under Ctrl; releasing one does not release Ctrl early.
 - [ ] Repeat letters/arrows/Backspace; slide off stops repeat without stuck modifiers.
 - [ ] Home/End, PgUp/PgDn, Insert, F1–F12 and integrated-terminal shortcuts.
@@ -123,7 +124,6 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [ ] Previous/picker controls work, with and without another recent keyboard.
 - [ ] Rotate or switch apps/editors mid-hold; no repeats or modifiers leak afterward.
 - [ ] Connect Bluetooth/USB keyboard: emkeys hides; disconnect it while an editor is focused.
-- [ ] TalkBack: navigate and activate individual keys, including latched chords.
 
 ### Completed automated device checks (2026-11-13)
 
@@ -176,26 +176,12 @@ discard only that scratch buffer (this scratch flow already passed once on the t
 tablet). Basic terminal checks also passed in a separate idle terminal; use another
 disposable terminal for broader shell shortcuts, never a running task. Recheck Ctrl+E
 after any VS Code keybinding changes. Chrome tab-mode F6/Ctrl+PgUp/PgDn are verified;
-their behavior in the installed code-server PWA still needs separate checking.
+PWA probe results are listed under Limitations and can be revisited if those shortcuts
+are important.
 
-Try actual three-finger chords and normal typing in both orientations. Then use
-TalkBack to explore and activate individual keys and latched chords. Automated virtual
-node actions do not establish TalkBack focus order, spoken feedback or touch ergonomics.
-
-For TalkBack acceptance, use the **setup typing test**, not a running code-server
-terminal. With TalkBack enabled by the user:
-
-1. Explore keys and swipe through them; verify names, focus order and bounds, without
-   accidental typing. Activate keys with the user's configured TalkBack gesture.
-2. Activate Shift once, then inspect its spoken state: **On for next key**. Activate
-   A; confirm uppercase input and that Shift returns to Off.
-3. Activate Shift twice; verify **Locked**, type two letters, then activate Shift
-   again to clear it. Both Shift caps must describe the same state.
-4. Activate Fn then the FnLock key on Esc. Verify persistent FnLock is described on
-   Fn and Esc; activate Fn again and check **Fn layer off for next key**. Use an arrow,
-   then verify the locked layer returns. Toggle FnLock off before finishing.
-
-These are manual checks, not claims that TalkBack speech has already passed.
+Try actual three-finger chords and normal typing in both orientations. TalkBack speech,
+focus order and explore-by-touch are intentionally not acceptance requirements for this
+milestone, per user preference.
 
 ### Reproduce device automation
 
@@ -205,10 +191,10 @@ test keystrokes. Tests temporarily change FnLock/Fn-swap preferences and restore
 rotation tests unfreeze orientation on completion. The previous-keyboard test needs
 a second enabled keyboard (otherwise it is skipped), temporarily seeds its history
 using test-only shell authority, and restores emkeys. Tests never disable keyboards.
-The 18-test suite has passed on the tablet. Do not run automation while
-someone is using that tablet to work or chat: an activity/IME guard cannot
-distinguish editor focus from a live terminal
-inside the same code-server PWA.
+The previous 18-test toolbar-free suite passed on the tablet; the current suite has
+not run against the updated modifier-lock/physical-keyboard build. Do not run automation
+while someone is using that tablet to work or chat: an activity/IME guard cannot
+distinguish editor focus from a live terminal inside the same code-server PWA.
 
 ```sh
 export ANDROID_SERIAL=YOUR_DEVICE_SERIAL
