@@ -15,6 +15,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class KeyboardLayerTest {
+    private var now = 0L
     private val strokes = mutableListOf<KeyStroke>()
     private val actions = mutableListOf<KeyboardAction>()
     private val persistedLocks = mutableListOf<Boolean>()
@@ -30,7 +31,7 @@ class KeyboardLayerTest {
             override fun cancel(pointerId: Int) { tick = null }
             override fun cancelAll() { tick = null }
         },
-        fn = FnState(onLockChanged = { persistedLocks += it }),
+        fn = FnState(onLockChanged = { persistedLocks += it }, nowMillis = { now }),
         onAction = { actions += it },
     )
     private val keys = ThinkPadLayout.create().keys
@@ -39,13 +40,19 @@ class KeyboardLayerTest {
         controller.press(pointer, key(label))
         controller.release(pointer)
     }
+    private fun withFn(label: String) {
+        controller.press(90, key("Fn"))
+        tap(label, 91)
+        controller.release(90)
+    }
     private fun baseDown() = strokes.filter { it.down && it.keyCode !in Mod.entries.map { m -> m.keyCode } }
 
-    @Test fun `tapped Fn maps exactly one key`() {
+    @Test fun `tapping Fn has no effect and holding Fn maps alternate key`() {
         tap("Fn")
         tap("←")
+        withFn("←")
         tap("←")
-        assertEquals(listOf(K.KEYCODE_MOVE_HOME, K.KEYCODE_DPAD_LEFT), baseDown().map { it.keyCode })
+        assertEquals(listOf(K.KEYCODE_DPAD_LEFT, K.KEYCODE_MOVE_HOME, K.KEYCODE_DPAD_LEFT), baseDown().map { it.keyCode })
         assertFalse(controller.fn.active)
     }
 
@@ -91,7 +98,7 @@ class KeyboardLayerTest {
     }
 
     @Test fun `Fn mappings use Android keycodes and never emit Fn`() {
-        listOf("B", "P", "S", "K").forEach { label -> tap("Fn"); tap(label) }
+        listOf("B", "P", "S", "K").forEach(::withFn)
         assertEquals(listOf(K.KEYCODE_BREAK, K.KEYCODE_BREAK, K.KEYCODE_SYSRQ, K.KEYCODE_SCROLL_LOCK),
             baseDown().map { it.keyCode })
         assertTrue(baseDown().all { it.scanCode != 0 && it.metaState == 0 })
@@ -104,8 +111,8 @@ class KeyboardLayerTest {
     }
 
     @Test fun `Fn Tab and Space invoke UI actions without typing`() {
-        tap("Fn"); tap("Tab")
-        tap("Fn"); tap("Space")
+        withFn("Tab")
+        withFn("Space")
         assertEquals(listOf(KeyboardAction.SWITCH_KEYBOARD, KeyboardAction.PICK_KEYBOARD), actions)
         assertTrue(strokes.isEmpty())
         assertFalse(controller.fn.active)
@@ -119,35 +126,43 @@ class KeyboardLayerTest {
         assertTrue(actions.isEmpty())
     }
 
-    @Test fun `cancelled Fn hold never becomes a latch`() {
+    @Test fun `cancelled Fn hold becomes inactive`() {
         controller.press(0, key("Fn"))
         controller.cancel(0)
         assertFalse(controller.fn.active)
     }
 
-    @Test fun `a new Fn latch survives release of an older base key`() {
-        controller.press(1, key("A"))
+    @Test fun `tapping Fn alone does not activate alternate layer`() {
         tap("Fn")
-        controller.release(1)
         tap("←")
-        assertEquals(K.KEYCODE_MOVE_HOME, baseDown().last().keyCode)
+        assertEquals(K.KEYCODE_DPAD_LEFT, baseDown().last().keyCode)
     }
 
-    @Test fun `Caps affects letters but not symbols and Shift reverses Caps`() {
+    @Test fun `fast double tap Fn locks layer and one tap unlocks`() {
+        tap("Fn")
+        now += FnState.DOUBLE_TAP_TIMEOUT_MS
+        tap("Fn")
+        assertTrue(controller.fn.isTapLocked)
+        assertTrue(controller.fn.active)
+        tap("Fn")
+        assertFalse(controller.fn.isTapLocked)
+        assertFalse(controller.fn.active)
+    }
+
+    @Test fun `Caps affects letters but held Shift reverses Caps`() {
         tap("Caps")
         tap("A")
         tap("1")
-        tap("Shift")
-        tap("A")
+        controller.press(10, key("Shift")); tap("A", 11); controller.release(10)
         assertEquals(listOf(Mod.SHIFT.metaBits, 0, 0), baseDown().map { it.metaState })
         assertTrue(controller.capsLock)
         tap("Caps")
         assertFalse(controller.capsLock)
     }
 
-    @Test fun `Caps and Ctrl compose and reset on editor teardown`() {
+    @Test fun `Caps remains active while a Ctrl tap has no effect`() {
         tap("Caps"); tap("Ctrl"); tap("P")
-        assertEquals(Mod.CTRL.metaBits or Mod.SHIFT.metaBits, baseDown().single().metaState)
+        assertEquals(Mod.SHIFT.metaBits, baseDown().single().metaState)
         controller.cancelAll(sendUps = true)
         assertFalse(controller.capsLock)
     }
@@ -158,7 +173,7 @@ class KeyboardLayerTest {
     }
 
     @Test fun `Shift symbols retain their physical keycode and scancode`() {
-        tap("Shift"); tap("[")
+        controller.press(10, key("Shift")); tap("[", 11); controller.release(10)
         assertEquals(KeyStroke(K.KEYCODE_LEFT_BRACKET, true, Mod.SHIFT.metaBits, 26), baseDown().single())
     }
 

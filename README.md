@@ -7,11 +7,11 @@ in the pingwin dark palette. Android 10+ (API 29), Kotlin, no Compose.
 ## Current milestone
 
 The keyboard-only MVP is implemented: **84 keys**, a 5u spacebar, inverted-T arrows,
-Ctrl/Shift/Alt chords and sticky modifiers, key repeat, a local Fn layer, Caps,
+Ctrl/Shift/Alt hold chords and double-tap locks, key repeat, a hold/double-tap Fn layer, Caps,
 persistent FnLock, Fn/Ctrl swap, and keyboard-switching controls. Key legends use
 bundled JetBrains Mono. The keyboard needs **no root, Shizuku or network permission**.
 
-The current build passed **18 native device tests** on a Galaxy Tab S9 Ultra
+The toolbar-free build passed **18 native device tests** on a Galaxy Tab S9 Ultra
 (Android 16), including both orientations, injected three-finger touches, symbols,
 shortcuts, Fn, repeat, accessibility states and the toolbar-free input view. The
 preceding build passed **10 Chrome oracle cases**.
@@ -25,15 +25,17 @@ still need acceptance checks below**.
 There is no trackpad, light theme
 or signed release yet. See `RESEARCH.md` §§9.6–9.9 for the exact evidence and limits.
 
-Local validation: **91 JVM tests pass**, debug and unsigned/minified release APKs
+Local validation: **93 JVM tests pass**, debug APKs
 build, and debug lint passes with zero errors (six advisory warnings about tool
 versions and an unnecessary resource qualifier). The app declares `VIBRATE` for
 Samsung's IME haptic helper; no runtime permission prompt is needed.
 
-The installed accessibility-state update adds one-shot/held/locked descriptions
-and reports persistent FnLock on Esc, including temporary Fn-layer inversion.
-Its 16 JVM regressions and three new device tests pass. Actual TalkBack speech
-and explore-by-touch validation are still pending.
+Shift/Ctrl/Alt/Fn work while held; a fast double-tap locks them and one tap unlocks.
+Fn+Esc remains the explicit persistent FnLock action. The IME now suppresses its view
+when Android reports an available physical keyboard, and hides an already-open view
+on connection; it requests the view again after disconnect if the editor is still active.
+These latest changes pass host tests but have not yet been installed/device-tested.
+TalkBack speech and explore-by-touch validation are skipped per user preference.
 
 ## Build
 
@@ -54,10 +56,9 @@ The full layout is designed for tablets, not phone-sized touch targets.
 
 | Control | Behavior |
 |---|---|
-| Ctrl / Shift / Alt | Tap to latch for one key; tap twice to lock; third tap clears |
-| Held modifier | Chord with other fingers; using it does not also latch it |
+| Ctrl / Shift / Alt | Hold for a chord; fast double-tap to lock; tap once to unlock |
 | Caps | Letters-only uppercase; Shift reverses it; resets when input ends |
-| Fn | Tap for one layer key, or hold to chord |
+| Fn | Hold for an alternate-layer chord; fast double-tap to lock; tap once to unlock |
 | Fn + Esc | Toggle FnLock, remembered across sessions |
 | Fn while locked | Temporarily reverse the Fn layer |
 | Esc alone | Always Escape, even with FnLock |
@@ -71,7 +72,8 @@ The full layout is designed for tablets, not phone-sized touch targets.
 The keyboard has no extra toolbar above the keys. Use Android's keyboard-switcher
 control in the navigation bar, Fn+Tab for the previous IME, or Fn+Space for the
 picker. Launch setup from the app icon when you need to change preferences.
-The toolbar-free layout is installed on the tablet and passed the 18-test device suite.
+The installed tablet build predates the latest double-tap and hardware-keyboard
+changes; current source needs a fresh device install/test.
 
 F1–F12 stay primary; no Windows-only media functions are simulated. **Swap Fn and
 left Ctrl** in setup; the layout refreshes the next time the keyboard opens. Both
@@ -80,10 +82,10 @@ modifier state, with independent touch ownership.
 
 Move off a key to stop its repeat or cancel an unused modifier/action. Base keys
 send their first keystroke on touch-down, so sliding away cannot undo that stroke.
-TalkBack exposes each cap as an individual virtual button; tapping modifiers first
-allows chords without simultaneous touches.
-Accessibility state descriptions distinguish **Off**, **On for next key**, **Held**
-and **Locked**. Fn reports FnLock and temporary inversion separately; Esc reports
+TalkBack exposes each cap as an individual virtual button. Modifier chords require
+simultaneous held touches; a fast double-tap locks a modifier and a tap releases it.
+Accessibility state descriptions distinguish **Off**, **Held** and **Locked**.
+Fn reports FnLock and temporary inversion separately; Esc reports
 the persistent lock and how to toggle it, without making bare Esc a toggle button.
 
 ## Limitations
@@ -111,7 +113,8 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [ ] Portrait and landscape: all 84 keys visible, arrow tiers separate, editor usable.
 - [ ] Alphabet, digits, every shifted symbol, Space, Enter, Backspace and Delete.
 - [x] Ctrl+Shift+P opens Command Palette; Escape closes it; Ctrl+W closes an editor.
-- [ ] Hold Ctrl + Shift with two fingers, tap P with a third; no surprise latch.
+- [ ] Hold Ctrl + Shift with two fingers, tap P with a third; modifiers release with the chord.
+- [ ] Tap Shift/Ctrl/Alt/Fn without holding another key; no modifier or Fn layer stays active.
 - [ ] Overlap two base keys under Ctrl; releasing one does not release Ctrl early.
 - [ ] Repeat letters/arrows/Backspace; slide off stops repeat without stuck modifiers.
 - [ ] Home/End, PgUp/PgDn, Insert, F1–F12 and integrated-terminal shortcuts.
@@ -119,7 +122,7 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [ ] Fn navigation, FnLock toggle and persistence, Fn/Ctrl swap.
 - [ ] Previous/picker controls work, with and without another recent keyboard.
 - [ ] Rotate or switch apps/editors mid-hold; no repeats or modifiers leak afterward.
-- [ ] Physical keyboard attached: emkeys remains visible, with no fullscreen editor.
+- [ ] Connect Bluetooth/USB keyboard: emkeys hides; disconnect it while an editor is focused.
 - [ ] TalkBack: navigate and activate individual keys, including latched chords.
 
 ### Completed automated device checks (2026-11-13)
@@ -128,13 +131,12 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
   Fn and the bottom row receive touches without hitting Samsung's system controls.
 - [x] Native typing, Space/Backspace, Caps/Shift inversion, Fn navigation, FnLock toggle
   and persistence when the input view is reopened.
-- [x] Injected three-finger Ctrl+Shift+P releases without leaving a modifier latch.
+- [x] Injected three-finger Ctrl+Shift+P releases without leaving a modifier active.
   This is OS-injected multitouch, not a human touch-panel/ergonomics test.
 - [x] Chrome receives trusted, non-composing events for A–Z, digits, all shifted
   punctuation, Ctrl+Shift+P, Ctrl+W, Fn navigation/B/P/S/K and F1–F12 **except F6**.
 - [x] Chrome receives Caps inversion, bare Escape under FnLock and 16 repeated
   Ctrl+Left pairs inside one Ctrl envelope.
-- [x] Keyboard stays visible with the physical keyboard attached; no fullscreen editor.
 - [x] Expanded build in the real code-server PWA: Ctrl+Shift+P opens Command Palette,
   Ctrl+P opens Quick Open, and Escape dismisses each.
 - [x] Disposable untitled editor: code punctuation, Enter, Home/End, Fn navigation,
@@ -147,7 +149,7 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
   The test terminal was closed; the original running terminal was not used for input.
 - [x] Overlapping base-key sessions retain Shift for the remaining repeating key after
   the Shift pointer and first base key are lifted; the following key is lowercase.
-- [x] Slide-off stops repeat and cancels an unused modifier without latching it.
+- [x] Slide-off stops repeat and cancels an unused held modifier.
 - [x] Leaving for Home mid-hold and recreating the editor leaks no repeat/modifier.
 - [x] Rotating during held Shift+Q stops repeat, clears Shift and preserves initial text.
 - [x] Actual setup checkbox persists Fn/Ctrl swap in both directions; reopening the
@@ -155,10 +157,9 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [x] Fn+Space opens the system picker; Fn+Tab returns to a known recent Gboard.
   No-history fallback/cancellation order have JVM policy coverage;
   Android's actual no-history picker UI is still pending.
-- [x] Virtual accessibility clicks type `aBc` using one-shot Shift, and Win is disabled.
-  TalkBack speech/focus/touch navigation is still pending.
-- [x] Virtual nodes distinguish one-shot, locked, held and cancelled Shift; FnLock
-  and temporary inversion are described correctly, while bare Esc stays non-checkable.
+- [ ] Updated device suite: fast double-tap locks Ctrl/Shift/Alt/Fn and one tap unlocks.
+- [ ] Virtual nodes distinguish off/held/locked modifiers; FnLock and temporary inversion
+  are described correctly, while bare Esc stays non-checkable.
 - [x] Input view exposes all 84 caps without Previous, Switch Keyboard or Setup toolbar
   buttons; Fn+Space opens the picker and Fn+Tab switches to the recent keyboard.
 

@@ -10,12 +10,8 @@ import com.ekomardiatno.emkeys.model.Mod
  * Touch -> dispatch. The one place the three ordering invariants of [ModifierState] are
  * actually honoured, so they are worth reading in situ:
  *
- * - [press] calls `markChordConsumed()` **before** opening the chord, i.e. on base-key
- *   pointer down.
- * - [release] calls `closeChord()` **before** `consumeLatched()` — the modifier UPs need
- *   their modifiers still listed as active.
- * - [release] calls `consumeLatched()` only on pointer up, not per repeat tick, so a latch
- *   survives a held repeating arrow.
+ * A base key snapshots modifiers that are physically held on its pointer-down. Its repeat
+ * events reuse that chord; pointer-up closes it before releasing the base key.
  *
  * Main thread only, by construction.
  */
@@ -31,8 +27,6 @@ class KeyboardController(
     private data class Press(
         val cap: Key,
         val key: Key,
-        val latches: Map<Mod, Int>,
-        val fnLatch: Int?,
     )
 
     private val pointers = mutableMapOf<Int, Press>()
@@ -49,7 +43,7 @@ class KeyboardController(
     fun effectiveKey(key: Key): Key {
         val alternate = key.fnKey ?: return key
         val toggle = (alternate.role as? KeyRole.Action)?.action == KeyboardAction.FN_LOCK
-        return if (if (toggle) fn.isHeld || fn.isLatched else fn.active) alternate else key
+        return if (if (toggle) fn.isHeld else fn.active) alternate else key
     }
 
     fun isUppercase(key: Key): Boolean =
@@ -60,7 +54,7 @@ class KeyboardController(
     fun press(pointerId: Int, cap: Key) {
         cancel(pointerId) // a reused id must not trigger a stale tap/action
         val key = effectiveKey(cap)
-        pointers[pointerId] = Press(cap, key, modifiers.latchedSnapshot(), fn.latchSnapshot())
+        pointers[pointerId] = Press(cap, key)
         when (val role = key.role) {
             is KeyRole.Modifier -> modifiers.pressMod(role.mod)
             KeyRole.Fn -> fn.press()
@@ -87,7 +81,7 @@ class KeyboardController(
         finish(pointerId, cancelled = false)
     }
 
-    /** Slide-off cancels repeats/holds without turning an unused modifier into a latch. */
+    /** Slide-off cancels repeats and releases any held modifier without sticky side effects. */
     fun cancel(pointerId: Int) {
         finish(pointerId, cancelled = true)
     }
@@ -100,11 +94,8 @@ class KeyboardController(
             KeyRole.Base -> {
                 repeater.cancel(pointerId)
                 dispatcher.closeChord(pointerId)
-                modifiers.consumeLatched(press.latches)
-                fn.consumeLatch(press.fnLatch)
             }
             is KeyRole.Action -> {
-                fn.consumeLatch(press.fnLatch)
                 if (!cancelled) when (role.action) {
                     KeyboardAction.CAPS_LOCK -> capsLock = !capsLock
                     KeyboardAction.FN_LOCK -> fn.toggleLock()

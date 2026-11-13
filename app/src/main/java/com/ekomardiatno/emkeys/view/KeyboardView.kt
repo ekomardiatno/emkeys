@@ -113,13 +113,13 @@ class KeyboardView(context: Context) : View(context) {
             val disabled = key.role == KeyRole.Disabled
             fill.color = when {
                 phase == Phase.LOCKED -> theme.locked
-                amberFill -> theme.latched
+                amberFill -> theme.active
                 index in touched.values -> theme.capPressed
                 modifier -> theme.capModifier
                 else -> theme.cap
             }
             stroke.color = when {
-                held -> theme.latched
+                held -> theme.active
                 modifier -> theme.borderStrong
                 else -> theme.border
             }
@@ -158,7 +158,7 @@ class KeyboardView(context: Context) : View(context) {
                     rect.bottom - textPadding - legend.descent(), legend)
             }
             if ((key.fnKey?.role as? KeyRole.Action)?.action == KeyboardAction.FN_LOCK && controller.fn.locked) {
-                fill.color = theme.latched
+                fill.color = theme.active
                 canvas.drawCircle(rect.right - 5f * density, rect.top + 5f * density, 2f * density, fill)
             }
         }

@@ -243,12 +243,11 @@ class KeyboardDeviceTest {
         assertEquals(checked, node.isChecked)
     }
 
-    @Test fun virtualAccessibilityDistinguishesOneShotAndLockedModifiers() {
+    @Test fun virtualAccessibilityModifierDoubleTapLocksAndSingleTapUnlocks() {
         fun click(label: String) = assertTrue(key(label).performAction(AccessibilityNodeInfo.ACTION_CLICK))
         assertAccessibleState("Shift", R.string.key_off, false)
         click("Shift")
-        await { key("Shift").isChecked }
-        assertAccessibleState("Shift", R.string.key_latched, true)
+        assertAccessibleState("Shift", R.string.key_off, false)
         click("Shift")
         assertAccessibleState("Shift", R.string.key_locked, true)
         click("A")
@@ -256,28 +255,22 @@ class KeyboardDeviceTest {
         assertAccessibleState("Shift", R.string.key_locked, true)
         click("Shift")
         assertAccessibleState("Shift", R.string.key_off, false)
-        click("Shift"); click("B")
-        await { editor()?.text?.toString() == "AB" }
-        assertAccessibleState("Shift", R.string.key_off, false)
     }
 
-    @Test fun virtualAccessibilityExposesFnLockWithoutTurningEscapeIntoAToggle() {
+    @Test fun virtualAccessibilityFnDoubleTapLocksAndSingleTapUnlocks() {
         fun click(label: String) = assertTrue(key(label).performAction(AccessibilityNodeInfo.ACTION_CLICK))
         assertAccessibleState("Esc", R.string.key_fn_lock_off, false)
         assertFalse(key("Esc").isCheckable)
         click("Fn")
-        assertAccessibleState("Fn", R.string.key_latched, true)
-        click("FnLk")
-        assertAccessibleState("Fn", R.string.key_fn_locked, true)
-        assertAccessibleState("Esc", R.string.key_fn_lock_on, false)
-        assertFalse(key("Esc").isCheckable)
+        assertAccessibleState("Fn", R.string.key_off, false)
         click("Fn")
-        assertAccessibleState("Fn", R.string.key_fn_inverted_latched, false)
+        assertAccessibleState("Fn", R.string.key_fn_tap_locked, true)
         click("→")
-        assertAccessibleState("Fn", R.string.key_fn_locked, true)
-        click("Fn"); click("FnLk")
+        assertAccessibleState("Fn", R.string.key_fn_tap_locked, true)
+        click("Fn")
         assertAccessibleState("Fn", R.string.key_off, false)
         assertAccessibleState("Esc", R.string.key_fn_lock_off, false)
+        assertFalse(key("Esc").isCheckable)
     }
 
     @Test fun virtualAccessibilityReportsHeldModifierAndCancelledRelease() {

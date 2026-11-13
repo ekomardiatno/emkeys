@@ -18,17 +18,16 @@ internal object KeyAccessibilityState {
         return when (val role = key.role) {
             is KeyRole.Modifier -> when (controller.modifierState().phase(role.mod)) {
                 Phase.OFF -> R.string.key_off
-                Phase.LATCHED -> R.string.key_latched
                 Phase.HELD -> R.string.key_held
                 Phase.LOCKED -> R.string.key_locked
             }
             KeyRole.Fn -> with(controller.fn) {
                 when {
+                    locked && isTapLocked -> R.string.key_fn_inverted_tap_locked
                     locked && isHeld -> R.string.key_fn_inverted_held
-                    locked && isLatched -> R.string.key_fn_inverted_latched
+                    isTapLocked -> R.string.key_fn_tap_locked
                     locked -> R.string.key_fn_locked
                     isHeld -> R.string.key_held
-                    isLatched -> R.string.key_latched
                     else -> R.string.key_off
                 }
             }

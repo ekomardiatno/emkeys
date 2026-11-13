@@ -9,16 +9,8 @@ verified-from-source, and it is *already done*. Read it before re-deriving anyth
 about Android IMEs, Chromium key dispatch, VS Code keybinding resolution, the ThinkPad
 geometry, or the trackpad options. Do not re-research it.
 
-Status: **keyboard-only MVP implemented (chunk 2)** — full 84-key modern ThinkPad
-layout, local Fn/Caps, persistent FnLock, Fn/Ctrl swap, switching toolbar, slide-off,
-and virtual accessibility keys. The expanded keyboard passed 12 native device tests
-and 10 Chrome oracle cases on the Galaxy Tab S9 Ultra (see `RESEARCH.md` §§9.6–9.7).
-Command Palette/Quick Open and Escape also work in the actual code-server PWA.
-Overlap, slide-off, editor teardown, Fn/Ctrl swap, picker/previous controls and virtual
-accessibility clicks are device-covered. Broader editor/terminal workflows, manual
-multitouch ergonomics, the no-history switching fallback and TalkBack still need the
-checklist in `README.md`. Do not generalize injected pointers to human touch-panel
-testing, or virtual-node actions to TalkBack UX acceptance.
+Status: **chunk 1 complete** — scaffold + walking skeleton. The dispatch core is real
+and proven on device; the layout is a deliberately fake 12-key stand-in.
 
 ---
 
@@ -57,13 +49,10 @@ model/                 pure Kotlin, no Android construction
   KeyStroke.kt         data class(keyCode, down, metaState, scanCode)
   Key.kt               Key / KeyRole (Base | Modifier) / KeyRow / Layout
   SkeletonLayout.kt    the 12-key chunk-1 layout
-  ThinkPadLayout.kt    the active 84-key modern ANSI layout
-  LayoutGeometry.kt   pure bounds and hit targets for drawing/touch/accessibility
 
 ime/
   ChordEnvelope.kt     List<Mod> + Key -> List<KeyStroke>.  Pure. The contract.
   ModifierState.kt     OFF / LATCHED / HELD / LOCKED, untimed tap cycle
-  FnState.kt           local latch/hold + persistent-lock callback
   KeyDispatcher.kt     chord sessions keyed by pointerId; talks to a StrokeSink
   RepeatController.kt  Handler-based repeat; implements Repeater
   KeyboardController.kt the one place the ordering invariants live
@@ -73,11 +62,10 @@ ime/
 
 view/
   Theme.kt             pingwin tokens resolved from colors.xml
-  KeyboardView.kt      measure, draw, pointers, slide-off, ExploreByTouchHelper
+  KeyboardView.kt      measure, lay out caps, draw, demultiplex pointers
 
 setup/
   SetupActivity.kt     three diagnostics + a smoke-test EditText
-  KeyboardPreferences.kt persisted FnLock + Fn/Ctrl swap
 ```
 
 ### Why `KeyStroke` exists
@@ -88,8 +76,8 @@ file (`KeyEventFactory.kt`) converts them. `KeyEvent.KEYCODE_*` and `META_*` con
 *do* resolve off-device (kotlinc inlines Java `static final` primitives), so the model
 can name them freely — only *construction* is device-only.
 
-Consequence: **if you change dispatch behaviour, add a JVM regression test.** 71 tests
-currently pass; no emulator is needed for core, layer, ownership or geometry tests.
+Consequence: **if you change dispatch behaviour, there is a JVM test for it.** 40 tests,
+no emulator.
 
 ### The chord envelope
 
@@ -137,14 +125,13 @@ Verified on device: latch `Ctrl`, press Home, come back, tap `P` → `metaState 
 
 ```sh
 cd ~/Desktop/projects/emkeys
-./gradlew :app:testDebugUnitTest     # no device
+./gradlew :app:testDebugUnitTest     # 40 tests, no device
 ./gradlew :app:assembleDebug
-./gradlew :app:lintDebug
 ```
 
 Toolchain matches `pingwin-android`: Gradle 9.3.1, AGP 8.13.2, Kotlin 2.2.20, JDK 17,
-compileSdk/buildTools 36, minSdk 29. Dependencies are `androidx.core:core-ktx`,
-`androidx.customview` (virtual accessibility keys), and `junit`. No Compose, Hilt or Room.
+compileSdk/buildTools 36, minSdk 29. Dependencies are `androidx.core:core-ktx` and
+`junit` — nothing else. No Compose, no Hilt, no Room.
 
 Debug signing only. The `keystoreProps` block in `app/build.gradle.kts` no-ops when
 `keystore.properties` is absent; there is no `.jks` yet.
@@ -161,7 +148,8 @@ $ADB -s $D shell ime enable  com.ekomardiatno.emkeys/.ime.EmkeysInputMethodServi
 $ADB -s $D shell ime set     com.ekomardiatno.emkeys/.ime.EmkeysInputMethodService
 ```
 
-**Restore the normal keyboard when done testing**, if desired (or use the toolbar):
+**Restore the normal keyboard when done** — emkeys has 12 keys, it is not usable for
+real typing yet:
 
 ```sh
 $ADB -s $D shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME
@@ -220,7 +208,7 @@ the page. DevTools and `chrome://inspect` were rejected — see the file header.
   losing game — the foreground app changes under you. Verify `topResumedActivity`
   inline, in the same on-device shell, right before the taps that matter.
 
-### Historical chunk-1 cap coordinates (not valid for the current layout)
+### Chunk-1 cap coordinates (landscape, px)
 
 `unit = 413.857`, `x_centre(i) = 217.43 + i*420.857`; row 0 `y = 1689`, row 1 `y = 1790`.
 
@@ -230,27 +218,21 @@ the page. DevTools and `chrome://inspect` were rejected — see the file header.
 
 ---
 
-## 5. Chunk-2 ownership rules
+## 5. Known limitation, carried into chunk 2
 
-`KeyDispatcher` now reference-counts modifier DOWNs across overlapping base-key
-sessions: DOWN on 0→1, UP on 1→0. Modifier transition meta includes the union of live
-sessions; each base/repeat pair retains its own snapshotted modifiers.
+Two **non-modifier** keys held at once open two chord sessions, so `Ctrl` DOWN is
+emitted twice. Harmless for everything chunk 1 cares about, and asserted as-is in
+`ChordEnvelopeTest` so the behaviour change is visible when it is fixed.
 
-Both physical Shift/Ctrl/Alt caps share logical state but count held touches.
-Latches have versions so releasing an older base key cannot consume a newly tapped
-modifier or Fn latch. Canceling an unused modifier must not turn it into a tap.
-
-Fn is never emitted. Fn+Esc toggles the stored lock; bare Esc always remains Escape.
-Holding Fn reverses the locked layer. Caps is local, letters-only Shift inversion;
-it resets with editor teardown. FnLock survives teardown. F1–F12 remain primary.
+The fix: reference-count modifier DOWNs in `KeyDispatcher` — emit DOWN on 0→1 and UP on
+1→0.
 
 ---
 
 ## 6. Deliberately not here yet
 
-Light mode · the UHID/Shizuku trackpad · haptics tuning · key preview popups ·
-GitHub remote and release CI · release signing. Full-layout on-device acceptance
-remains pending; see `README.md`.
+ThinkPad 15u geometry and the 84-key layout · Fn layer and FnLock · light mode ·
+settings UI beyond the three diagnostics · the UHID/Shizuku trackpad · haptics tuning ·
+key preview popups and slide-off · GitHub remote and release CI · release signing.
 
-`RESEARCH.md` holds the design/research record; some items (such as light-mode tokens)
-are proposals, not final decisions.
+`RESEARCH.md` has the design already decided for all of these.

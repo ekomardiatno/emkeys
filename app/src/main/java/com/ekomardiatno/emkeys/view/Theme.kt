@@ -30,8 +30,8 @@ class Theme(private val context: Context) {
     val legend = color(R.color.text)
     val legendMuted = color(R.color.muted)
 
-    /** Amber = active state throughout pingwin. Latched vs locked differ by shade. */
-    val latched = color(R.color.amber)
+    /** Amber indicates a physically held modifier or another active toggle. */
+    val active = color(R.color.amber)
     val locked = color(R.color.amber_press)
     val onAmber = color(R.color.amber_ink)
 }

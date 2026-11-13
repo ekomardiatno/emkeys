@@ -16,7 +16,7 @@ import org.junit.Test
 /**
  * The acceptance contract for the dispatch core. `Ctrl+Shift+P` must produce exactly six
  * strokes, with the right `metaState` *and* the right `scanCode`, whether the modifiers
- * were tapped or held.
+ * are physically held.
  *
  * Asserted as list equality on [KeyStroke] rather than as a sequence of mock verifications,
  * because the thing that breaks is the whole shape of the trace, not an individual call.
@@ -97,12 +97,15 @@ class ChordEnvelopeTest {
     }
 
     @Test
-    fun `tapped Ctrl then tapped Shift then tapped P`() {
+    fun `tapping modifiers does not latch a chord`() {
         tap(0, capCtrl)
         tap(0, capShift)
         tap(0, keyP)
 
-        assertEquals(ctrlShiftP, sink.strokes)
+        assertEquals(
+            listOf(KeyStroke(KeyEvent.KEYCODE_P, true, 0, 25), KeyStroke(KeyEvent.KEYCODE_P, false, 0, 25)),
+            sink.strokes,
+        )
     }
 
     @Test
@@ -194,7 +197,7 @@ class ChordEnvelopeTest {
     }
 
     @Test
-    fun `latch clears after one base key`() {
+    fun `modifier tap has no effect on the following base key`() {
         tap(0, capCtrl)
         tap(0, keyP)
         sink.strokes.clear()
@@ -211,7 +214,7 @@ class ChordEnvelopeTest {
     }
 
     @Test
-    fun `locked Ctrl modifies every subsequent key until unlocked`() {
+    fun `fast double Ctrl tap locks and a single tap unlocks`() {
         tap(0, capCtrl)
         tap(0, capCtrl) // locked
         tap(0, keyP)
@@ -246,11 +249,12 @@ class ChordEnvelopeTest {
     }
 
     @Test
-    fun `a latch survives a repeating arrow - Ctrl+left word jump repeats`() {
-        tap(0, capCtrl)
+    fun `held Ctrl survives every repeat tick inside the chord`() {
+        controller.press(2, capCtrl)
         controller.press(1, keyLeft)
         repeater.tick(1, times = 4)
         controller.release(1)
+        controller.release(2)
 
         val arrows = sink.strokes.filter { it.keyCode == KeyEvent.KEYCODE_DPAD_LEFT }
         assertEquals(10, arrows.size)
@@ -350,8 +354,8 @@ class ChordEnvelopeTest {
     }
 
     @Test
-    fun `overlapping base keys share Ctrl until the final session closes`() {
-        tap(0, capCtrl)
+    fun `overlapping base keys share held Ctrl until the final session closes`() {
+        controller.press(0, capCtrl)
         controller.press(1, keyLeft)
         controller.press(2, keyP)
 
@@ -362,6 +366,7 @@ class ChordEnvelopeTest {
         controller.release(2)
         assertEquals(1, sink.strokes.count { it.keyCode == KeyEvent.KEYCODE_CTRL_LEFT && !it.down })
         assertEquals(0, sink.strokes.last().metaState)
+        controller.release(0)
     }
 
     @Test
@@ -382,8 +387,8 @@ class ChordEnvelopeTest {
 
     @Test
     fun `cancel with overlapping sessions emits only one final UP per modifier`() {
-        tap(0, capCtrl)
-        tap(0, capShift)
+        controller.press(10, capCtrl)
+        controller.press(11, capShift)
         controller.press(1, keyLeft)
         controller.press(2, keyP)
         sink.strokes.clear()
@@ -393,25 +398,26 @@ class ChordEnvelopeTest {
 
     @Test
     fun `dead connection reset also clears reference counts`() {
-        tap(0, capCtrl)
+        controller.press(10, capCtrl)
         controller.press(1, keyLeft)
         controller.press(2, keyP)
         controller.cancelAll(sendUps = false)
         sink.strokes.clear()
-        tap(0, capCtrl)
+        controller.press(10, capCtrl)
         tap(0, keyP)
+        controller.release(10)
         assertEquals(1, sink.strokes.count { it.keyCode == KeyEvent.KEYCODE_CTRL_LEFT && it.down })
         assertEquals(1, sink.strokes.count { it.keyCode == KeyEvent.KEYCODE_CTRL_LEFT && !it.down })
     }
 
     @Test
-    fun `releasing a prior base key does not consume a newly tapped modifier`() {
+    fun `releasing a prior base key does not make a modifier tap sticky`() {
         controller.press(1, keyP)
         tap(0, capCtrl)
         controller.release(1)
         sink.strokes.clear()
         tap(2, keyP)
-        assertEquals(ctrlBits, sink.strokes.first { it.keyCode == KeyEvent.KEYCODE_P }.metaState)
+        assertEquals(0, sink.strokes.first { it.keyCode == KeyEvent.KEYCODE_P }.metaState)
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.ekomardiatno.emkeys.ime
 
 import android.inputmethodservice.InputMethodService
+import android.content.res.Configuration
 import android.os.SystemClock
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -23,17 +24,14 @@ import com.ekomardiatno.emkeys.view.KeyboardView
  * - [onEvaluateFullscreenMode] is `false` **unconditionally** (RESEARCH.md §1.4). The
  *   default selects fullscreen in landscape, which would cover code-server with an
  *   extract-text editor. Non-negotiable on a landscape tablet.
- * - [onEvaluateInputViewShown] is `true` **unconditionally**. The default returns true only
- *   when `shouldShowImeWithHardKeyboard()` holds or no hard keyboard is present, so with the
- *   TrackPoint Keyboard II connected (and `show_ime_with_hard_keyboard = 0`, the device
- *   default) emkeys would simply never be drawn. It is a public overridable method, so this
- *   needs no `WRITE_SECURE_SETTINGS` and no secure setting flipped — correcting
- *   RESEARCH.md §5.3's claim that the combination is impossible.
+ * - [onEvaluateInputViewShown] follows the system hardware-keyboard configuration, keeping
+ *   emkeys out of the way whenever an attached physical keyboard is available.
  */
 class EmkeysInputMethodService : InputMethodService() {
 
     private val modifiers = ModifierState()
     private var keyboardView: KeyboardView? = null
+    private var hiddenForHardwareKeyboard = false
     private val preferences by lazy { KeyboardPreferences(this) }
     private val switcher by lazy {
         KeyboardSwitcher(
@@ -59,7 +57,7 @@ class EmkeysInputMethodService : InputMethodService() {
             modifiers = modifiers,
             repeater = RepeatController(),
             onStateChanged = { keyboardView?.refreshState() },
-            fn = FnState(preferences.fnLocked) { preferences.fnLocked = it },
+            fn = FnState(preferences.fnLocked, onLockChanged = { preferences.fnLocked = it }),
             onAction = ::performAction,
         )
     }
@@ -109,10 +107,27 @@ class EmkeysInputMethodService : InputMethodService() {
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onEvaluateInputViewShown(): Boolean {
-        // The superclass performs internal configuration refreshes; keep those side effects,
-        // but deliberately override its hardware-keyboard suppression decision.
         super.onEvaluateInputViewShown()
-        return true
+        val physicalKeyboard = PhysicalKeyboard.isConnected(resources.configuration)
+        if (physicalKeyboard) hiddenForHardwareKeyboard = true
+        return !physicalKeyboard
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (PhysicalKeyboard.isConnected(newConfig)) {
+            if (isInputViewShown) {
+                hiddenForHardwareKeyboard = true
+                controller.cancelAll(sendUps = true)
+                keyboardView?.resetTouches()
+                requestHideSelf(0)
+            }
+        } else if (hiddenForHardwareKeyboard) {
+            hiddenForHardwareKeyboard = false
+            if (currentInputEditorInfo != null) {
+                requestShowSelf(InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
     }
 
     /** The connection is still live here, so stranded modifiers get their UPs. */
@@ -126,6 +141,7 @@ class EmkeysInputMethodService : InputMethodService() {
     override fun onFinishInput() {
         controller.cancelAll(sendUps = false)
         keyboardView?.resetTouches()
+        hiddenForHardwareKeyboard = false
         super.onFinishInput()
     }
 

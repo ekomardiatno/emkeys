@@ -3,7 +3,6 @@ package com.ekomardiatno.emkeys.setup
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
@@ -20,6 +19,7 @@ import android.view.ViewGroup
 import android.graphics.Rect
 import com.ekomardiatno.emkeys.R
 import com.ekomardiatno.emkeys.ime.EmkeysInputMethodService
+import com.ekomardiatno.emkeys.ime.PhysicalKeyboard
 import android.view.inputmethod.InputMethodManager
 
 /**
@@ -112,23 +112,10 @@ class SetupActivity : Activity() {
             else getString(R.string.status_current_no, current?.flattenToShortString() ?: "unknown")
         }
 
-        // Informational only. onEvaluateInputViewShown() is overridden to true, so emkeys
-        // shows regardless; and show_ime_with_hard_keyboard is not writable by a normal app
-        // (WRITE_SECURE_SETTINGS is signature|privileged).
-        val config = resources.configuration
-        val hardKeyboardPresent = config.keyboard != Configuration.KEYBOARD_NOKEYS &&
-            config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
-        val systemAllowsBoth = Settings.Secure.getInt(
-            contentResolver,
-            SHOW_IME_WITH_HARD_KEYBOARD, // @hide constant, hence the literal
-            0,
-        ) == 1
+        val hardKeyboardPresent = PhysicalKeyboard.isConnected(resources.configuration)
         status(R.id.status_hard_keyboard, ok = true) {
-            when {
-                !hardKeyboardPresent -> getString(R.string.status_hardkb_none)
-                systemAllowsBoth -> getString(R.string.status_hardkb_allowed)
-                else -> getString(R.string.status_hardkb_override)
-            }
+            if (hardKeyboardPresent) getString(R.string.status_hardkb_hidden)
+            else getString(R.string.status_hardkb_none)
         }
     }
 
@@ -149,7 +136,4 @@ class SetupActivity : Activity() {
         }
     }
 
-    private companion object {
-        const val SHOW_IME_WITH_HARD_KEYBOARD = "show_ime_with_hard_keyboard"
-    }
 }
