@@ -1,0 +1,19 @@
+[versions]
+agp = "8.13.2"
+kotlin = "2.2.20"
+coreKtx = "1.16.0"
+junit = "4.13.2"
+customview = "1.2.0"
+testRunner = "1.6.2"
+testJunit = "1.2.1"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-customview = { group = "androidx.customview", name = "customview", version.ref = "customview" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "testRunner" }
+androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "testJunit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">emkeys</string>
+    <string name="ime_name">emkeys</string>
+    <string name="setup_title">emkeys setup</string>
+
+    <string name="action_open_ime_settings">Open keyboard settings</string>
+    <string name="action_pick_ime">Switch keyboard</string>
+    <string name="action_previous_ime">🌐 Previous</string>
+    <string name="action_setup">Setup</string>
+    <string name="key_on">On</string>
+    <string name="key_off">Off</string>
+    <string name="status_row">%1$s  %2$s</string>
+    <string name="swap_fn_ctrl">Swap Fn and left Ctrl</string>
+    <string name="keyboard_help">Tap Ctrl, Shift or Alt to latch for one key. Tap twice to lock; a third tap unlocks. You can also hold modifiers while typing. Caps affects letters only.\n\nTap Fn for one layer key, or hold it to chord. Fn + Esc toggles persistent FnLock; holding Fn temporarily reverses the locked layer. Esc by itself stays Escape. F1–F12 stay primary.\n\nFn + ←/→: Home/End · Fn + B/P: Break/Pause (Android shares one keycode) · Fn + S: SysRq · Fn + K: Scroll Lock · Fn + Tab: previous keyboard · Fn + Space: keyboard picker.\n\nWin is unavailable through Chrome. Chrome may reserve F6, Ctrl + Tab and Ctrl + PgUp/PgDn. The full layout is designed for tablets. Slide off a key to stop repeat; its initial keystroke has already been sent.</string>
+
+    <string name="status_enabled_yes">Enabled in Settings</string>
+    <string name="status_enabled_no">Not enabled — turn emkeys on in keyboard settings</string>
+    <string name="status_current_yes">Selected as the current keyboard</string>
+    <string name="status_current_no">Not the current keyboard (now: %1$s)</string>
+    <string name="status_hardkb_none">No hardware keyboard attached</string>
+    <string name="status_hardkb_override">A hardware keyboard is attached; emkeys overrides the suppression</string>
+    <string name="status_hardkb_allowed">A hardware keyboard is attached, and the system is set to show on-screen keyboards anyway</string>
+
+    <string name="adb_hint_label">Escape hatch, if a soft keyboard still refuses to appear (long-press to copy):</string>
+    <string name="adb_command">adb shell settings put secure show_ime_with_hard_keyboard 1</string>
+
+    <string name="smoke_test_label">Typing test — try letters, symbols, Caps and navigation here. Verify developer shortcuts separately in code-server.</string>
+    <string name="smoke_test_hint">Tap here to raise the keyboard…</string>
+</resources>

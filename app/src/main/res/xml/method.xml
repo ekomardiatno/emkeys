@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  InputMethod metadata. Referenced from the manifest's meta-data entry named
+  "android.view.im" (NOT "android.view.InputMethod"). A typo there registers the IME with
+  no settings and no subtypes, silently.
+-->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.ekomardiatno.emkeys.setup.SetupActivity">
+    <!--
+      isAsciiCapable is load-bearing: without it the system may exclude emkeys from
+      password fields.
+    -->
+    <subtype
+        android:label="@string/ime_name"
+        android:imeSubtypeLocale="en_US"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="true" />
+</input-method>

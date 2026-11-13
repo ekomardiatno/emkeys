@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>emkeys key oracle</title>
+<!--
+  The dispatch oracle for emkeys.
+
+  WHY THIS AND NOT DEVTOOLS
+  code-server's integrated terminal is a shell on the *server*, not a page console, and
+  code-server web has no "Toggle Developer Tools" (that is Electron-only) -- getting JS into
+  that page needs the RESEARCH.md §6.6 workbench.html patch, far too heavy for a smoke test.
+  chrome://inspect needs `adb forward tcp:9222 localabstract:chrome_devtools_remote` over
+  wireless adb, and WebAPK pages frequently fail to enumerate.
+
+  So: one static page served off the Mac and opened on the tablet. Same Chromium renderer and
+  the same ImeAdapterImpl path as code-server, zero adb plumbing, readable on the tablet's own
+  screen while the IME is up -- and it logs the Bluetooth TrackPoint Keyboard II identically,
+  which gives byte-identical ground truth from the exact keyboard emkeys is imitating.
+
+  SERVE IT
+      cd tools && python3 -m http.server 8777 --bind 0.0.0.0
+      adb -s $D shell am start -a android.intent.action.VIEW \
+        -d "http://$(ipconfig getifaddr en0):8777/keyoracle.html"
+
+  Escalate to chrome://inspect only if this page shows a *correct* event and VS Code still
+  ignores it -- i.e. the fault is in the keybinding layer, not in emkeys.
+-->
+<style>
+  :root {
+    --ink: #0b1014; --ink-raise: #10171d; --line: #1e2a33; --line-strong: #2c3d49;
+    --text: #d7e0e7; --muted: #71838f; --amber: #f2a33c; --ok: #57c78a; --danger: #e05f5f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text);
+    font: 14px/1.45 ui-monospace, "JetBrains Mono", Menlo, monospace; }
+  body { display: flex; flex-direction: column; padding: 10px; gap: 8px; }
+  h1 { margin: 0; font-size: 15px; color: var(--amber); font-weight: 600; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button { background: var(--ink-raise); color: var(--text); border: 1px solid var(--line-strong);
+    border-radius: 4px; padding: 8px 14px; font: inherit; }
+  button:active { background: #080c0f; }
+  #pad { width: 100%; height: 76px; background: var(--ink-raise); color: var(--text);
+    border: 1px solid var(--line-strong); border-radius: 4px; padding: 8px; font: inherit;
+    resize: none; }
+  #expect { color: var(--muted); font-size: 12px; }
+  #log { flex: 1; overflow: auto; border: 1px solid var(--line); border-radius: 4px;
+    background: var(--ink-raise); padding: 6px; }
+  .ev { padding: 3px 4px; border-bottom: 1px solid var(--line); white-space: pre-wrap;
+    word-break: break-all; font-size: 12px; }
+  .keydown { color: var(--text); }
+  .keyup { color: var(--muted); }
+  .beforeinput, .input { color: #6fa8c7; }
+  .n { color: var(--muted); }
+  .mod { color: var(--amber); }
+  .warn { color: var(--danger); }
+  .src { color: var(--ok); }
+</style>
+</head>
+<body>
+
+<h1>emkeys key oracle</h1>
+
+<div class="bar">
+  <button id="clear">Clear</button>
+  <button id="copy">Copy</button>
+  <label><input type="checkbox" id="pd" checked> preventDefault on Ctrl/Alt</label>
+  <span id="count" class="n">0 events</span>
+</div>
+
+<textarea id="pad" autofocus spellcheck="false"
+  placeholder="Focus here, then press keys. Newest events first."></textarea>
+
+<div id="expect">
+  Ctrl+Shift+P should log, newest first:
+  keyup P &rarr; keydown P(ctrl,shift) &rarr; keydown Shift(ctrl) &rarr; keydown Control.
+  Every event must show a non-empty <b>code</b> and a correct <b>keyCode</b> (P = 80).
+</div>
+
+<div id="log"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const log = document.getElementById('log');
+  const pad = document.getElementById('pad');
+  const countEl = document.getElementById('count');
+  const pdEl = document.getElementById('pd');
+  const lines = [];
+  // Opt-in only, for local USB/adb-reverse device tests with keyoracle_server.py.
+  // A normal static oracle never sends keystrokes anywhere.
+  const report = new URLSearchParams(location.search).get('report') === '1';
+  // Automated dispatch-only runs may block all page defaults (for example F5 reload).
+  const blockDefaults = new URLSearchParams(location.search).get('block') === '1';
+  let n = 0;
+
+  const MODS = ['ctrlKey', 'shiftKey', 'altKey', 'metaKey'];
+
+  function describe(e) {
+    const parts = [];
+    parts.push(String(++n).padStart(4, '0'));
+    parts.push(e.type.padEnd(11));
+
+    if (e.type === 'keydown' || e.type === 'keyup') {
+      parts.push('key=' + JSON.stringify(e.key));
+      parts.push('code=' + (e.code ? e.code : '<<EMPTY>>'));
+      parts.push('keyCode=' + e.keyCode);
+      const on = MODS.filter(function (m) { return e[m]; })
+        .map(function (m) { return m.replace('Key', ''); });
+      parts.push('mods=[' + on.join(',') + ']');
+      if (e.getModifierState && e.getModifierState('AltGraph')) parts.push('ALTGRAPH!');
+      parts.push('loc=' + e.location);
+      parts.push('repeat=' + e.repeat);
+      parts.push('composing=' + e.isComposing);
+      parts.push('trusted=' + e.isTrusted);
+    } else {
+      parts.push('inputType=' + e.inputType);
+      parts.push('data=' + JSON.stringify(e.data));
+      parts.push('composing=' + e.isComposing);
+      parts.push('trusted=' + e.isTrusted);
+    }
+    return parts.join('  ');
+  }
+
+  function emit(e) {
+    const text = describe(e);
+    lines.unshift(text);
+    if (report) {
+      const record = {
+        n: n, type: e.type, key: e.key, code: e.code, keyCode: e.keyCode,
+        ctrl: !!e.ctrlKey, shift: !!e.shiftKey, alt: !!e.altKey, meta: !!e.metaKey,
+        repeat: !!e.repeat, composing: !!e.isComposing, trusted: e.isTrusted, text: text
+      };
+      // Capture the textarea after the browser has performed its default editing action.
+      setTimeout(function () {
+        record.value = pad.value;
+        record.selectionStart = pad.selectionStart;
+        record.selectionEnd = pad.selectionEnd;
+        fetch('/events', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        }).catch(function () { /* Static servers need not implement the collector. */ });
+      }, 0);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'ev ' + e.type;
+    row.textContent = text;
+    if (e.type === 'keydown' || e.type === 'keyup') {
+      if (!e.code) row.classList.add('warn');            // the classic soft-keyboard tell
+      if (e.keyCode === 229) row.classList.add('warn');  // commitText() path, not sendKeyEvent
+    }
+    log.insertBefore(row, log.firstChild);
+    while (log.childElementCount > 400) log.removeChild(log.lastChild);
+    countEl.textContent = n + ' events';
+  }
+
+  ['keydown', 'keyup', 'beforeinput', 'input'].forEach(function (type) {
+    // Capture phase, on window: sees the event before anything else on the page.
+    window.addEventListener(type, function (e) {
+      emit(e);
+      // VS Code calls preventDefault() on everything it binds, and this page must do the
+      // same -- otherwise the Ctrl+W test closes the page you are testing with.
+      if (pdEl.checked && (e.type === 'keydown' || e.type === 'keyup')) {
+        if (blockDefaults || e.ctrlKey || e.altKey || e.metaKey) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    }, true);
+  });
+
+  document.getElementById('clear').addEventListener('click', function () {
+    lines.length = 0;
+    n = 0;
+    log.textContent = '';
+    countEl.textContent = '0 events';
+    pad.focus();
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    const text = lines.join('\n');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    } else {
+      pad.value = text;
+      pad.select();
+      document.execCommand('copy');
+    }
+  });
+
+  // Report what the page thinks it is running on, for the record.
+  const meta = document.createElement('div');
+  meta.className = 'ev src';
+  meta.textContent = 'navigator.keyboard=' + (('keyboard' in navigator) ? 'present' : 'undefined') +
+    '  (undefined is why VS Code falls back to FallbackKeyboardMapper and dispatches on keyCode)' +
+    '\nUA: ' + navigator.userAgent;
+  log.appendChild(meta);
+
+  pad.focus();
+}());
+</script>
+</body>
+</html>

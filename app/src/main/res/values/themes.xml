@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Emkeys" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorBackground">@color/ink</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:colorAccent">@color/amber</item>
+        <item name="android:statusBarColor">@color/ink</item>
+        <item name="android:navigationBarColor">@color/ink</item>
+    </style>
+
+    <!-- Explicit empty parent: the dotted name would otherwise imply a "Emkeys" parent. -->
+    <style name="Emkeys.Status" parent="">
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">4dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/text</item>
+    </style>
+</resources>

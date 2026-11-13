@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- pingwin tokens, RESEARCH.md §7.1. Dark only in chunk 1. -->
+<resources>
+    <color name="ink">#FF0B1014</color>
+    <color name="ink_raise">#FF10171D</color>
+    <color name="ink_press">#FF080C0F</color>
+    <color name="line">#FF1E2A33</color>
+    <color name="line_strong">#FF2C3D49</color>
+    <color name="text">#FFD7E0E7</color>
+    <color name="muted">#FF71838F</color>
+    <color name="amber">#FFF2A33C</color>
+    <color name="amber_press">#FFD88B25</color>
+    <color name="amber_ink">#FF16110A</color>
+    <color name="ok">#FF57C78A</color>
+    <color name="danger">#FFE05F5F</color>
+</resources>
