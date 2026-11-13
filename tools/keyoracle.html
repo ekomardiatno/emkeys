@@ -131,7 +131,8 @@
       const record = {
         n: n, type: e.type, key: e.key, code: e.code, keyCode: e.keyCode,
         ctrl: !!e.ctrlKey, shift: !!e.shiftKey, alt: !!e.altKey, meta: !!e.metaKey,
-        repeat: !!e.repeat, composing: !!e.isComposing, trusted: e.isTrusted, text: text
+        repeat: !!e.repeat, composing: !!e.isComposing, trusted: e.isTrusted, text: text,
+        fixture: new URLSearchParams(location.search).get('fixture') || 'default'
       };
       // Capture the textarea after the browser has performed its default editing action.
       setTimeout(function () {

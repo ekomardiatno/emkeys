@@ -152,7 +152,7 @@ def main():
         case("Fn navigation and B/P/S/K", lambda: modified_taps("Fn", ["←", "→", "B", "P", "S", "K"]),
              ["Home", "End", "Pause", "Pause", "PrintScreen", "ScrollLock"])
         functions = [f"F{i}" for i in range(1, 13) if i != 6]
-        case("function row except F6 (compatibility check pending)", lambda: taps(functions), functions)
+        case("function row except F6 (separate browser probe)", lambda: taps(functions), functions)
         case("Caps with Shift inversion", lambda: taps(["Caps Lock", "A", "1", "Shift", "A", "Caps Lock"]), ["A", "1", "a"])
         case("FnLock and bare Escape", lambda: taps(["Fn", "Esc", "←", "Esc", "Fn", "Esc"]), ["Home", "Escape"])
 

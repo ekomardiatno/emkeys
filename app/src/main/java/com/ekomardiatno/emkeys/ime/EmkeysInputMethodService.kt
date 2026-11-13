@@ -38,6 +38,16 @@ class EmkeysInputMethodService : InputMethodService() {
     private val modifiers = ModifierState()
     private var keyboardView: KeyboardView? = null
     private val preferences by lazy { KeyboardPreferences(this) }
+    private val switcher by lazy {
+        KeyboardSwitcher(
+            cancelInput = {
+                controller.cancelAll(sendUps = true)
+                keyboardView?.resetTouches()
+            },
+            switchToPrevious = { switchToPreviousInputMethod() },
+            showPicker = { getSystemService(InputMethodManager::class.java).showInputMethodPicker() },
+        )
+    }
 
     private val controller: KeyboardController by lazy {
         KeyboardController(
@@ -115,17 +125,9 @@ class EmkeysInputMethodService : InputMethodService() {
         }
     }
 
-    private fun switchKeyboard() {
-        controller.cancelAll(sendUps = true)
-        keyboardView?.resetTouches()
-        if (!switchToPreviousInputMethod()) pickKeyboard()
-    }
+    private fun switchKeyboard() = switcher.previous()
 
-    private fun pickKeyboard() {
-        controller.cancelAll(sendUps = true)
-        keyboardView?.resetTouches()
-        getSystemService(InputMethodManager::class.java).showInputMethodPicker()
-    }
+    private fun pickKeyboard() = switcher.picker()
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 

@@ -86,7 +86,11 @@ class KeyboardDeviceTest {
     private fun bounds(node: AccessibilityNodeInfo) = Rect().also(node::getBoundsInScreen)
 
     private fun tap(label: String) {
-        val b = bounds(key(label))
+        tapNode(key(label))
+    }
+
+    private fun tapNode(node: AccessibilityNodeInfo) {
+        val b = bounds(node)
         val start = SystemClock.uptimeMillis()
         touch(start, MotionEvent.ACTION_DOWN, listOf(b))
         touch(start, MotionEvent.ACTION_UP, listOf(b))
@@ -230,6 +234,50 @@ class KeyboardDeviceTest {
         assertTrue(bounds(leftCtrl).left < bounds(key("Fn")).left)
         tap("A"); tap("B"); tap("Fn"); tap("Home"); tap("X")
         assertEquals("xab", editor()!!.text.toString())
+    }
+
+    @Test fun setupCheckboxPersistsAndRebindsFnCtrlInBothDirections() {
+        listOf(true, false).forEach { swapped ->
+            assertTrue(automation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
+            await { keys().isEmpty() }
+            fun checkbox() = nodes().first { it.viewIdResourceName == "com.ekomardiatno.emkeys:id/swap_fn_ctrl" }
+            checkbox().performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+            automation.waitForIdle(500, 6000)
+            tapNode(checkbox())
+            await { preferences.swapFnCtrl == swapped && checkbox().isChecked == swapped }
+            await { editor()?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true }
+            automation.waitForIdle(500, 6000)
+            await { keys().size == 84 }
+            val leftCtrl = keys().first { it.contentDescription.toString() == "Ctrl" }
+            assertEquals(swapped, bounds(leftCtrl).left < bounds(key("Fn")).left)
+            tap("Fn"); tap("Home")
+            assertFalse(key("Fn").isChecked)
+        }
+    }
+
+    @Test fun rotationMidHoldStopsRepeatAndClearsModifier() {
+        val shift = bounds(key("Shift"))
+        val q = bounds(key("Q"))
+        val start = SystemClock.uptimeMillis()
+        touch(start, MotionEvent.ACTION_DOWN, listOf(shift))
+        touch(start, MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), listOf(shift, q))
+        await { editor()?.text?.toString()?.matches(Regex("Q+")) == true }
+        val rotation = if (context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            UiAutomation.ROTATION_FREEZE_0
+        } else UiAutomation.ROTATION_FREEZE_90
+        assertTrue(automation.setRotation(rotation))
+        automation.waitForIdle(500, 6000)
+        touch(start, MotionEvent.ACTION_CANCEL, listOf(shift, q))
+        await { editor()?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true }
+        automation.waitForIdle(500, 6000)
+        await { keys().size == 84 }
+        val text = editor()!!.text.toString()
+        assertTrue("Initial shifted stroke was lost: $text", text.matches(Regex("Q+")))
+        SystemClock.sleep(650)
+        assertEquals(text, editor()!!.text.toString())
+        assertTrue(keys().filter { it.contentDescription.toString() == "Shift" }.none { it.isChecked })
+        tap("P")
+        assertEquals(text + "p", editor()!!.text.toString())
     }
 
     @Test fun fnSpaceAndToolbarOpenKeyboardPicker() {

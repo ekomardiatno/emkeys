@@ -1094,3 +1094,96 @@ the Fn/Ctrl checkbox UI and no-history previous-keyboard fallback; actual TalkBa
 speech, focus order and explore-by-touch. Do not disable other keyboards merely to
 manufacture the no-history case on the user's tablet. Trackpad/Shizuku, theme work
 and release/distribution remain separate milestones.
+
+### 9.8 Editor/terminal acceptance and switching edge cases (2026-11-13)
+
+Using the same tablet and code-server PWA, created a disposable **New Untitled Text
+File** through the Command Palette. The command search used adb ASCII text only to
+select the command; all editor test characters and shortcuts below came from taps on
+emkeys caps. The untitled buffer was visually confirmed before any test typing.
+
+Entered and inspected:
+
+```text
+const answer = (1 + 2);
+const text = "emkeys";
+[] {} <> !@#$%^&*_+|?~\
+```
+
+Home + Delete removed the first bracket, typing `[` restored it. End + Backspace
+removed the final backslash, typing `\` restored it. Fn+left then Shift+End selected
+the entire symbols line; Backspace deleted that selection. Typed `symbols_ok`, Enter,
+then Caps+A, 1, Shift+A and Caps-off: the final line was `A1a`.
+
+Ctrl+W opened VS Code's save-changes dialog for this newly created untitled buffer,
+**not a browser-close action**. Selected Don't Save; the scratch tab disappeared and
+the existing Welcome tab and integrated terminal remained. No existing editor buffer
+was changed and no test text was sent to the running terminal. Screenshots were
+inspected locally and kept outside the repository.
+
+The previous-keyboard policy is now a small pure `KeyboardSwitcher` used by the IME.
+Four JVM tests verify successful previous switching, false/no-history fallback to
+the picker, direct picker opening, and cancellation before each request. The fallback
+no longer passes through the public picker handler and cancels twice. This tests the
+policy without disabling the user's other keyboards; Android's no-history UI case
+is still not hardware-verified. There are now **75 passing JVM tests**.
+
+Two additional native device tests passed:
+
+- Tapping the actual Fn/Ctrl checkbox on, then off; observing persisted preference,
+  reopening the IME, checking left-Ctrl/Fn bounds order and using the Fn layer.
+- Holding Shift+Q while rotating to the other orientation, then observing no repeat
+  after the transition, no checked Shift, preserved uppercase text, and a plain `p`.
+  This uses an injected touch stream, not a human finger/ergonomics test.
+
+**Final native run: `OK (14 tests)`, 70.079s, no failures or skips.** The host restored
+the starting selected IME, accelerometer/user-rotation settings and code-server task.
+Debug/instrumentation and unsigned/minified release builds pass; debug lint remains
+at zero errors and six advisory warnings.
+The installed follow-up build also passed all **10 Chrome oracle cases**, including
+16 Ctrl+Left repeat pairs inside one Ctrl envelope, after the switching refactor.
+
+#### Chrome tab-mode reserved shortcuts
+
+`tools/browser_shortcuts_probe.py` opens two disposable, separately tagged oracle
+tabs with opt-in loopback reporting and default blocking. It checks the owned URL,
+foreground Chrome activity, selected IME, orientation and IME visibility before cap
+touches. It restores the starting task and IME, removes only its reverse mapping and
+stops its collector. Two oracle tabs remain open after each run. Early probe attempts
+stopped safely on Chrome accessibility/focus transitions; the final run completed all
+three observations after explicit omnibox dismissal and owned-page refocusing:
+
+| Shortcut | Chrome 157 tab-mode observation |
+|---|---|
+| F6 | Native address bar focused; no F6 renderer event |
+| Ctrl+PgUp | Fixture B → A; no PageUp renderer event |
+| Ctrl+PgDn | Fixture A → B; no PageDown renderer event |
+
+These results establish browser interception, not code-server commands. They do not
+establish the same behavior in the installed PWA; that remains a separate check.
+Fixture tags are included in oracle reports; normal static oracle use remains local
+and non-reporting unless `?report=1` is supplied.
+
+#### Separate idle terminal
+
+Created a new terminal through **Terminal: Create New Terminal**, confirmed its idle
+zsh prompt and separate terminal entry, and maximized the panel. All shell text and
+shortcuts used emkeys caps. `printf 'emkeys terminal ok\n'` + Enter printed the expected
+line. Typed unexecuted `emkeys_pending_input`; Ctrl+C returned to a fresh prompt.
+Typed `abc`, Ctrl+A, `x`: the pending line became `xabc`, establishing shell start-of-line.
+
+**Ctrl+E opened VS Code Quick Open rather than shell end-of-line.** Following text
+therefore went into that overlay, not into the terminal; subsequent Enter opened an
+existing XML file preview without editing it. This is an application binding/focus
+limitation, not evidence of successful shell Ctrl+E delivery. No user keybindings or
+terminal settings were changed. Refocused the visually confirmed test terminal,
+cancelled the pending line with Ctrl+C, and typed `exit` + Enter. Its terminal entry
+disappeared and the original running development terminal remained. Its exit status
+was 130 (the preceding Ctrl+C), not an application crash. Restored the maximized
+original terminal panel without sending it any test keystrokes. Screenshots remain
+outside the repository.
+
+Remaining acceptance: human multitouch/typing ergonomics, actual TalkBack speech and
+explore-by-touch, Android no-history switching UI, broader terminal shortcuts and
+F6/Ctrl+PgUp/PgDn in the installed PWA. Trackpad/Shizuku, themes and signing remain
+separate milestones.
