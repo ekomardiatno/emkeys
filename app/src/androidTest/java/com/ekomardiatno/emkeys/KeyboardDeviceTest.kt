@@ -16,6 +16,7 @@ import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ekomardiatno.emkeys.setup.KeyboardPreferences
@@ -221,6 +222,67 @@ class KeyboardDeviceTest {
         assertFalse(key("Shift").isChecked)
         assertTrue(key("C").performAction(AccessibilityNodeInfo.ACTION_CLICK))
         await { editor()?.text.toString() == "aBc" }
+    }
+
+    private fun assertAccessibleState(label: String, description: Int, checked: Boolean) {
+        await {
+            val node = AccessibilityNodeInfoCompat.wrap(key(label))
+            node.stateDescription?.toString() == context.getString(description) && node.isChecked == checked
+        }
+        val node = AccessibilityNodeInfoCompat.wrap(key(label))
+        assertEquals(context.getString(description), node.stateDescription?.toString())
+        assertEquals(checked, node.isChecked)
+    }
+
+    @Test fun virtualAccessibilityDistinguishesOneShotAndLockedModifiers() {
+        fun click(label: String) = assertTrue(key(label).performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        assertAccessibleState("Shift", R.string.key_off, false)
+        click("Shift")
+        await { key("Shift").isChecked }
+        assertAccessibleState("Shift", R.string.key_latched, true)
+        click("Shift")
+        assertAccessibleState("Shift", R.string.key_locked, true)
+        click("A")
+        await { editor()?.text?.toString() == "A" }
+        assertAccessibleState("Shift", R.string.key_locked, true)
+        click("Shift")
+        assertAccessibleState("Shift", R.string.key_off, false)
+        click("Shift"); click("B")
+        await { editor()?.text?.toString() == "AB" }
+        assertAccessibleState("Shift", R.string.key_off, false)
+    }
+
+    @Test fun virtualAccessibilityExposesFnLockWithoutTurningEscapeIntoAToggle() {
+        fun click(label: String) = assertTrue(key(label).performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        assertAccessibleState("Esc", R.string.key_fn_lock_off, false)
+        assertFalse(key("Esc").isCheckable)
+        click("Fn")
+        assertAccessibleState("Fn", R.string.key_latched, true)
+        click("FnLk")
+        assertAccessibleState("Fn", R.string.key_fn_locked, true)
+        assertAccessibleState("Esc", R.string.key_fn_lock_on, false)
+        assertFalse(key("Esc").isCheckable)
+        click("Fn")
+        assertAccessibleState("Fn", R.string.key_fn_inverted_latched, false)
+        click("→")
+        assertAccessibleState("Fn", R.string.key_fn_locked, true)
+        click("Fn"); click("FnLk")
+        assertAccessibleState("Fn", R.string.key_off, false)
+        assertAccessibleState("Esc", R.string.key_fn_lock_off, false)
+    }
+
+    @Test fun virtualAccessibilityReportsHeldModifierAndCancelledRelease() {
+        val shift = bounds(key("Shift"))
+        val start = SystemClock.uptimeMillis()
+        touch(start, MotionEvent.ACTION_DOWN, listOf(shift))
+        try {
+            assertAccessibleState("Shift", R.string.key_held, true)
+        } finally {
+            touch(start, MotionEvent.ACTION_CANCEL, listOf(shift))
+        }
+        assertAccessibleState("Shift", R.string.key_off, false)
+        tap("A")
+        assertEquals("a", editor()!!.text.toString())
     }
 
     @Test fun fnCtrlSwapRebindsGeometryAndFnBehavior() {

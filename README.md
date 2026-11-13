@@ -11,22 +11,28 @@ Ctrl/Shift/Alt chords and sticky modifiers, key repeat, a local Fn layer, Caps,
 persistent FnLock, Fn/Ctrl swap, and keyboard-switching controls. Key legends use
 bundled JetBrains Mono. The keyboard needs **no root, Shizuku or network permission**.
 
-The expanded keyboard passed **14 native device tests and 10 Chrome oracle cases**
-on a Galaxy Tab S9 Ultra (Android 16), including both orientations, injected
-three-finger touches, symbols, shortcuts, Fn and repeat. The original prototype was
-also verified against code-server; the expanded build now opens Command Palette
+The current build passed **17 native device tests** on a Galaxy Tab S9 Ultra
+(Android 16), including both orientations, injected three-finger touches, symbols,
+shortcuts, Fn and repeat. The preceding build passed **10 Chrome oracle cases**.
+The original prototype was also verified against code-server; the expanded build
+now opens Command Palette
 and Quick Open in the real code-server PWA and dismisses them with Escape. Scratch
 editing, selection/navigation, coding punctuation, Caps and Ctrl+W also work there.
 Basic terminal typing, Ctrl+C and Ctrl+A work; Ctrl+E is intercepted by VS Code's
 Quick Open in the tested configuration. **TalkBack and broader terminal workflows
 still need acceptance checks below**.
 There is no trackpad, light theme
-or signed release yet. See `RESEARCH.md` §§9.6–9.8 for the exact evidence and limits.
+or signed release yet. See `RESEARCH.md` §§9.6–9.9 for the exact evidence and limits.
 
-Local validation: **75 JVM tests pass**, debug and unsigned/minified release APKs
+Local validation: **91 JVM tests pass**, debug and unsigned/minified release APKs
 build, and debug lint passes with zero errors (six advisory warnings about tool
 versions and an unnecessary resource qualifier). The app declares `VIBRATE` for
 Samsung's IME haptic helper; no runtime permission prompt is needed.
+
+The installed accessibility-state update adds one-shot/held/locked descriptions
+and reports persistent FnLock on Esc, including temporary Fn-layer inversion.
+Its 16 JVM regressions and three new device tests pass. Actual TalkBack speech
+and explore-by-touch validation are still pending.
 
 ## Build
 
@@ -70,6 +76,9 @@ Move off a key to stop its repeat or cancel an unused modifier/action. Base keys
 send their first keystroke on touch-down, so sliding away cannot undo that stroke.
 TalkBack exposes each cap as an individual virtual button; tapping modifiers first
 allows chords without simultaneous touches.
+Accessibility state descriptions distinguish **Off**, **On for next key**, **Held**
+and **Locked**. Fn reports FnLock and temporary inversion separately; Esc reports
+the persistent lock and how to toggle it, without making bare Esc a toggle button.
 
 ## Limitations
 
@@ -142,6 +151,8 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
   Android's actual no-history picker UI is still pending.
 - [x] Virtual accessibility clicks type `aBc` using one-shot Shift, and Win is disabled.
   TalkBack speech/focus/touch navigation is still pending.
+- [x] Virtual nodes distinguish one-shot, locked, held and cancelled Shift; FnLock
+  and temporary inversion are described correctly, while bare Esc stays non-checkable.
 
 The general checklist above remains open where it includes additional manual or
 real-editor behavior. Oracle dispatch tests block browser defaults, so successful
@@ -162,6 +173,21 @@ Try actual three-finger chords and normal typing in both orientations. Then use
 TalkBack to explore and activate individual keys and latched chords. Automated virtual
 node actions do not establish TalkBack focus order, spoken feedback or touch ergonomics.
 
+For TalkBack acceptance, use the **setup typing test**, not a running code-server
+terminal. With TalkBack enabled by the user:
+
+1. Explore keys and swipe through them; verify names, focus order and bounds, without
+   accidental typing. Activate keys with the user's configured TalkBack gesture.
+2. Activate Shift once, then inspect its spoken state: **On for next key**. Activate
+   A; confirm uppercase input and that Shift returns to Off.
+3. Activate Shift twice; verify **Locked**, type two letters, then activate Shift
+   again to clear it. Both Shift caps must describe the same state.
+4. Activate Fn then the FnLock key on Esc. Verify persistent FnLock is described on
+   Fn and Esc; activate Fn again and check **Fn layer off for next key**. Use an arrow,
+   then verify the locked layer returns. Toggle FnLock off before finishing.
+
+These are manual checks, not claims that TalkBack speech has already passed.
+
 ### Reproduce device automation
 
 Use an idle test tablet with emkeys enabled; commands below target the single device
@@ -170,6 +196,10 @@ test keystrokes. Tests temporarily change FnLock/Fn-swap preferences and restore
 rotation tests unfreeze orientation on completion. The previous-keyboard test needs
 a second enabled keyboard (otherwise it is skipped), temporarily seeds its history
 using test-only shell authority, and restores emkeys. Tests never disable keyboards.
+The current 17-test suite has passed on the tablet. Do not run automation while
+someone is using that tablet to work or chat: an activity/IME guard cannot
+distinguish editor focus from a live terminal
+inside the same code-server PWA.
 
 ```sh
 export ANDROID_SERIAL=YOUR_DEVICE_SERIAL

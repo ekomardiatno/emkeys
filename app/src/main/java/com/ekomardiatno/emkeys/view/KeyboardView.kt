@@ -259,8 +259,8 @@ class KeyboardView(context: Context) : View(context) {
             node.isCheckable = cap.key.role is KeyRole.Modifier || cap.key.role == KeyRole.Fn ||
                 cap.key.role == KeyRole.Action(KeyboardAction.CAPS_LOCK)
             node.isChecked = isSelected(cap.key)
-            if (node.isCheckable) {
-                node.stateDescription = context.getString(if (node.isChecked) R.string.key_on else R.string.key_off)
+            node.stateDescription = controller?.let { controller ->
+                KeyAccessibilityState.description(cap.key, controller)?.let { context.getString(it) }
             }
             if (node.isEnabled) node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
         }

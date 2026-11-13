@@ -1187,3 +1187,54 @@ Remaining acceptance: human multitouch/typing ergonomics, actual TalkBack speech
 explore-by-touch, Android no-history switching UI, broader terminal shortcuts and
 F6/Ctrl+PgUp/PgDn in the installed PWA. Trackpad/Shizuku, themes and signing remain
 separate milestones.
+
+### 9.9 Accessibility-state hardening (2026-11-13)
+
+The virtual keys already expose click actions and forward hover/key/focus events
+through `ExploreByTouchHelper`. Review found that all active modifiers reported only
+"On", hiding the difference between a one-shot latch and a persistent lock. Esc's
+visible FnLock indicator had no corresponding accessibility state.
+
+Added a pure `KeyAccessibilityState` presentation mapper and localized state strings:
+
+- Ctrl/Shift/Alt distinguish Off, On for next key, Held and Locked.
+- Fn distinguishes its one-shot/held states from persistent FnLock. A held or latched
+  Fn under FnLock explicitly reports that the layer is temporarily **off**, rather
+  than misleadingly saying that FnLock itself is off.
+- Esc exposes persistent FnLock and the Fn+Escape toggle gesture even while its
+  effective action changes. Bare Esc remains a non-checkable Escape button; reading
+  its state does not toggle the lock or send input.
+- Caps continues to expose its own on/off toggle independently of Shift inversion.
+  Ordinary, disabled and keyboard-switch actions have no artificial toggle state.
+
+Sixteen new JVM regressions cover the state cycles, shared modifier caps, FnLock
+inversions, Caps, teardown and side-effect-free state reads. **91 JVM tests pass**;
+debug, instrumentation and unsigned/minified release APKs build, and debug lint
+has zero errors and six advisory warnings.
+
+Three additional native tests exercise the actual virtual-node descriptions through
+`AccessibilityNodeInfoCompat`, including one-shot versus locked Shift, FnLock with
+non-checkable Esc and temporary inversion, and held/cancelled Shift. After explicit
+permission for an idle-tablet window, installed the debug/test APKs and ran the full
+suite: **`OK (17 tests)`, 78.295s, no failures or skips**. The starting selected IME,
+accelerometer/user-rotation settings and original code-server task were restored.
+Chrome's 10-case oracle suite was last run on the preceding build; it was not rerun
+for this presentation-only update. Actual TalkBack speech, focus order and
+explore-by-touch remain unverified. No accessibility service or user accessibility
+setting was enabled or changed.
+
+An attempted PWA-only shortcut check created two empty untitled scratch editors;
+no file was saved and no PWA shortcut result is claimed. A later guarded touch
+attempt stopped when its activity/IME check failed. On resuming, the tablet UI had
+changed to a Save As dialog and subsequently the live development terminal. Touch
+automation was paused rather than continuing into that terminal. The empty scratch
+tabs may remain; no attempt was made to close tabs whose state could have changed.
+
+**Safety constraint for future acceptance:** activity and selected-IME checks cannot
+establish safe focus inside a PWA that contains both an editor and a running terminal.
+Require an agreed idle-tablet window, re-inspect the exact disposable buffer before
+each input sequence, and stop on unexpected focus/UI changes. Do not install a new
+IME build or run instrumentation while the tablet is being used for the live session.
+With the subsequently approved idle-tablet window, the accessibility update was
+installed and its full 17-test native suite passed as recorded above. No further
+PWA touch sequences were attempted during that window.
