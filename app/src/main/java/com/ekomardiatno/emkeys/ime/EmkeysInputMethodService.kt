@@ -2,11 +2,9 @@ package com.ekomardiatno.emkeys.ime
 
 import android.inputmethodservice.InputMethodService
 import android.os.SystemClock
-import android.content.Intent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -15,7 +13,6 @@ import com.ekomardiatno.emkeys.R
 import com.ekomardiatno.emkeys.model.ThinkPadLayout
 import com.ekomardiatno.emkeys.model.KeyboardAction
 import com.ekomardiatno.emkeys.setup.KeyboardPreferences
-import com.ekomardiatno.emkeys.setup.SetupActivity
 import com.ekomardiatno.emkeys.view.KeyboardView
 
 /**
@@ -82,31 +79,11 @@ class EmkeysInputMethodService : InputMethodService() {
             view.setPadding(safe.left, 0, safe.right, bottom)
             insets
         }
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(toolbarButton(R.string.action_previous_ime) { switchKeyboard() })
-            addView(toolbarButton(R.string.action_pick_ime) { pickKeyboard() })
-            addView(toolbarButton(R.string.action_setup) {
-                controller.cancelAll(sendUps = true)
-                startActivity(Intent(this@EmkeysInputMethodService, SetupActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            })
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-            (48 * resources.displayMetrics.density).toInt()))
         addView(KeyboardView(context).also { view ->
             keyboardView = view
             view.bind(ThinkPadLayout.create(preferences.swapFnCtrl), controller)
         }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT))
-    }
-
-    private fun toolbarButton(label: Int, onClick: () -> Unit): Button = Button(this).apply {
-        setText(label)
-        textSize = 12f
-        isAllCaps = false
-        isFocusable = false // Never steal editor focus from the served app.
-        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-        setOnClickListener { onClick() }
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {

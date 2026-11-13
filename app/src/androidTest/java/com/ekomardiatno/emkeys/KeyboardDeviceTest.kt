@@ -16,6 +16,7 @@ import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -69,6 +70,14 @@ class KeyboardDeviceTest {
             repeat(node.childCount) { node.getChild(it)?.let(::visit) }
         }
         automation.windows.forEach { it.root?.let(::visit) }
+    }
+
+    private fun nodes(window: AccessibilityWindowInfo): List<AccessibilityNodeInfo> = buildList {
+        fun visit(node: AccessibilityNodeInfo) {
+            add(node)
+            repeat(node.childCount) { node.getChild(it)?.let(::visit) }
+        }
+        window.root?.let(::visit)
     }
 
     private fun editor(): AccessibilityNodeInfo? = nodes().firstOrNull {
@@ -342,7 +351,7 @@ class KeyboardDeviceTest {
         assertEquals(text + "p", editor()!!.text.toString())
     }
 
-    @Test fun fnSpaceAndToolbarOpenKeyboardPicker() {
+    @Test fun fnSpaceOpensKeyboardPicker() {
         fun pickerVisible() = nodes().any {
             it.packageName != context.packageName && it.text?.toString()?.contains("emkeys", ignoreCase = true) == true
         }
@@ -357,17 +366,23 @@ class KeyboardDeviceTest {
             tap("Fn"); tap("Keyboards")
             await { pickerVisible() }
             dismissPicker()
-            val button = nodes().first { it.packageName == context.packageName &&
-                it.text?.toString() == context.getString(R.string.action_pick_ime) }
-            assertTrue(button.performAction(AccessibilityNodeInfo.ACTION_CLICK))
-            await { pickerVisible() }
         } finally {
             if (pickerVisible()) dismissPicker()
         }
         assertFalse(key("Fn").isChecked)
     }
 
-    @Test fun previousToolbarAndFnTabSwitchToRecentKeyboard() {
+    @Test fun inputViewOmitsToolbarButtons() {
+        val toolbarLabels = setOf("🌐 previous", "switch keyboard", "setup")
+        val imeWindow = automation.windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        assertNotNull("IME accessibility window is missing", imeWindow)
+        assertTrue(nodes(imeWindow!!).none { node ->
+            node.packageName == context.packageName && node.text?.toString()?.lowercase() in toolbarLabels
+        })
+        assertEquals(84, keys().size)
+    }
+
+    @Test fun fnTabSwitchesToRecentKeyboard() {
         val imm = context.getSystemService(InputMethodManager::class.java)
         val alternatives = imm.enabledInputMethodList.filter {
             it.packageName != context.packageName && (0 until it.subtypeCount).any { index ->
@@ -394,11 +409,6 @@ class KeyboardDeviceTest {
         }
         try {
             select(other!!.id)
-            openEmkeys()
-            val previous = nodes().first { it.packageName == context.packageName &&
-                it.text?.toString() == context.getString(R.string.action_previous_ime) }
-            assertTrue(previous.performAction(AccessibilityNodeInfo.ACTION_CLICK))
-            await { selected() == other.id }
             openEmkeys()
             tap("Fn"); tap("Switch")
             await { selected() == other.id }

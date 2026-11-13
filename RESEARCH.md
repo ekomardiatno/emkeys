@@ -959,8 +959,8 @@ there are no fake Windows media actions. B/P map to Android's shared
 IME; Fn+Space opens the picker. Caps is implemented locally as letters-only Shift
 inversion, not a persistent OS CapsLock event.
 
-Setup now offers Fn/Ctrl swap. A separate toolbar keeps switching/setup controls
-outside the 84-key shell; Win is rendered disabled. Moving off a key cancels its
+Setup now offers Fn/Ctrl swap. The original toolbar kept switching/setup controls
+outside the 84-key shell; it was later removed to reclaim viewport height. Win is rendered disabled. Moving off a key cancels its
 repeat/hold, but cannot undo the base stroke already emitted on DOWN. Virtual
 accessibility buttons support tap-based chords. Per-stroke logging is debug-only.
 
@@ -1067,10 +1067,10 @@ Seven additional native regressions in `KeyboardDeviceTest` cover:
   verify `aBc` and that Win remains disabled. This is not TalkBack UX acceptance.
 - Persist Fn/Ctrl swap, reopen the input view, verify left-Ctrl/Fn ordering and use
   Fn+left to edit at Home. The test changes the preference directly, not its checkbox.
-- Fn+Space and the toolbar open the real system picker and leave no Fn latch when
-  dismissed.
-- With Gboard as a known recent keyboard, toolbar Previous and Fn+Tab both select it;
-  emkeys is restored afterward. Only test UiAutomation uses shell authority to seed
+- Fn+Space and the (now removed) toolbar opened the real system picker and left no Fn
+  latch when dismissed.
+- With Gboard as a known recent keyboard, toolbar Previous and Fn+Tab both selected it;
+  emkeys was restored afterward. Only test UiAutomation uses shell authority to seed
   history; no settings permission is added to the app. This test skips if there is no
   second enabled keyboard. The no-history picker fallback remains unverified.
 
@@ -1238,3 +1238,26 @@ IME build or run instrumentation while the tablet is being used for the live ses
 With the subsequently approved idle-tablet window, the accessibility update was
 installed and its full 17-test native suite passed as recorded above. No further
 PWA touch sequences were attempted during that window.
+
+### 9.10 Removed the redundant input-view toolbar (2026-11-13)
+
+Per the product decision, removed the **Previous**, **Switch Keyboard**, and **Setup**
+buttons above the caps. The input view now contains only the keyboard; the bottom
+navigation/IME-inset safety padding remains intact. This reclaims the former 48dp
+toolbar row and its UI chrome. Switching still works through Fn+Tab (previous IME),
+Fn+Space (system picker), and Samsung's keyboard-switcher navigation affordance;
+setup remains available from the emkeys launcher icon.
+
+Updated native tests retain coverage for Fn+Space opening/dismissing the picker and
+Fn+Tab selecting a known recent Gboard, without expecting toolbar buttons. An added
+device regression asserts the Previous, Switch Keyboard and Setup toolbar labels are
+absent from the input view. Keyboard height now gets the former 48dp toolbar budget
+back, still capped at 48% of the display height.
+
+Host validation passes: **91 JVM tests**, debug and instrumentation APK builds,
+unsigned/minified release build, and lint with zero errors/six advisory warnings.
+Installed both debug APKs on the approved idle-tablet window; the complete suite
+passed: **`OK (18 tests)`, 78.252s, no failures or skips**, including the toolbar
+absence check and retained Fn+Tab switching. The starting selected IME, rotation
+settings and code-server task were restored. The toolbar-free APK is now installed.
+No PWA shortcut or TalkBack speech/explore-by-touch tests were done during this run.

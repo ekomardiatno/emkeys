@@ -6,8 +6,6 @@
 
     <string name="action_open_ime_settings">Open keyboard settings</string>
     <string name="action_pick_ime">Switch keyboard</string>
-    <string name="action_previous_ime">🌐 Previous</string>
-    <string name="action_setup">Setup</string>
     <string name="key_on">On</string>
     <string name="key_off">Off</string>
     <string name="key_latched">On for next key</string>

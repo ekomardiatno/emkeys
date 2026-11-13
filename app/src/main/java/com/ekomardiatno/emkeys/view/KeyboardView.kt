@@ -79,8 +79,8 @@ class KeyboardView(context: Context) : View(context) {
             val unitY = ((width - deckPadding * 2) / layout.widthU).coerceAtLeast(80f * density)
             deckPadding * 2 + unitY * layout.heightU
         } else 0f
-        // Keep room for the IDE in landscape; the 48dp toolbar shares this height budget.
-        val budget = (resources.displayMetrics.heightPixels * 0.48f - 48f * density)
+        // Keep room for the IDE in landscape. The input view has no extra toolbar row.
+        val budget = (resources.displayMetrics.heightPixels * 0.48f)
             .coerceAtLeast(120f * density)
         val height = resolveSize(natural.coerceAtMost(budget).toInt(), heightMeasureSpec)
         setMeasuredDimension(width, height)

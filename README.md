@@ -11,9 +11,10 @@ Ctrl/Shift/Alt chords and sticky modifiers, key repeat, a local Fn layer, Caps,
 persistent FnLock, Fn/Ctrl swap, and keyboard-switching controls. Key legends use
 bundled JetBrains Mono. The keyboard needs **no root, Shizuku or network permission**.
 
-The current build passed **17 native device tests** on a Galaxy Tab S9 Ultra
+The current build passed **18 native device tests** on a Galaxy Tab S9 Ultra
 (Android 16), including both orientations, injected three-finger touches, symbols,
-shortcuts, Fn and repeat. The preceding build passed **10 Chrome oracle cases**.
+shortcuts, Fn, repeat, accessibility states and the toolbar-free input view. The
+preceding build passed **10 Chrome oracle cases**.
 The original prototype was also verified against code-server; the expanded build
 now opens Command Palette
 and Quick Open in the real code-server PWA and dismisses them with Escape. Scratch
@@ -65,7 +66,12 @@ The full layout is designed for tablets, not phone-sized touch targets.
 | Fn + S / K | SysRq / Scroll Lock |
 | Fn + Tab | Switch to the previous keyboard |
 | Fn + Space | Open the keyboard picker |
-| Toolbar | Previous keyboard, keyboard picker, setup |
+| Setup | Launch **emkeys setup** from the app icon |
+
+The keyboard has no extra toolbar above the keys. Use Android's keyboard-switcher
+control in the navigation bar, Fn+Tab for the previous IME, or Fn+Space for the
+picker. Launch setup from the app icon when you need to change preferences.
+The toolbar-free layout is installed on the tablet and passed the 18-test device suite.
 
 F1–F12 stay primary; no Windows-only media functions are simulated. **Swap Fn and
 left Ctrl** in setup; the layout refreshes the next time the keyboard opens. Both
@@ -146,13 +152,15 @@ forwarded with `adb reverse tcp:8777 tcp:8777`.
 - [x] Rotating during held Shift+Q stops repeat, clears Shift and preserves initial text.
 - [x] Actual setup checkbox persists Fn/Ctrl swap in both directions; reopening the
   input view updates their positions and Fn navigation still works.
-- [x] Fn+Space/toolbar picker open the system picker; Previous/Fn+Tab return to a known
-  recent Gboard. No-history fallback/cancellation order have JVM policy coverage;
+- [x] Fn+Space opens the system picker; Fn+Tab returns to a known recent Gboard.
+  No-history fallback/cancellation order have JVM policy coverage;
   Android's actual no-history picker UI is still pending.
 - [x] Virtual accessibility clicks type `aBc` using one-shot Shift, and Win is disabled.
   TalkBack speech/focus/touch navigation is still pending.
 - [x] Virtual nodes distinguish one-shot, locked, held and cancelled Shift; FnLock
   and temporary inversion are described correctly, while bare Esc stays non-checkable.
+- [x] Input view exposes all 84 caps without Previous, Switch Keyboard or Setup toolbar
+  buttons; Fn+Space opens the picker and Fn+Tab switches to the recent keyboard.
 
 The general checklist above remains open where it includes additional manual or
 real-editor behavior. Oracle dispatch tests block browser defaults, so successful
@@ -196,7 +204,7 @@ test keystrokes. Tests temporarily change FnLock/Fn-swap preferences and restore
 rotation tests unfreeze orientation on completion. The previous-keyboard test needs
 a second enabled keyboard (otherwise it is skipped), temporarily seeds its history
 using test-only shell authority, and restores emkeys. Tests never disable keyboards.
-The current 17-test suite has passed on the tablet. Do not run automation while
+The 18-test suite has passed on the tablet. Do not run automation while
 someone is using that tablet to work or chat: an activity/IME guard cannot
 distinguish editor focus from a live terminal
 inside the same code-server PWA.
